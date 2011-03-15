@@ -12,7 +12,7 @@ VM_BACKUP_VOLUME=/vmfs/volumes/dlgCore-NFS-bigboi.VM-Backups/WILLIAM_BACKUPS
 # 2gbsparse
 # thin
 # eagerzeroedthick
-DISK_BACKUP_FORMAT=zeroedthick
+DISK_BACKUP_FORMAT=thin
 
 # Number of backups for a given VM before deleting
 VM_BACKUP_ROTATION_COUNT=3
@@ -61,13 +61,13 @@ ENABLE_NON_PERSISTENT_NFS=0
 UNMOUNT_NFS=0
 
 # IP Address of NFS Server
-NFS_SERVER=172.30.0.195
+NFS_SERVER=172.51.0.192
 
 # Path of exported folder residing on NFS Server (e.g. /some/mount/point )
-NFS_MOUNT=/nfsshare
+NFS_MOUNT=/upload
 
 # Non-persistent NFS datastore display name of choice
-NFS_LOCAL_NAME=nfs_storage_backup
+NFS_LOCAL_NAME=backup
 
 # Name of backup directory for VMs residing on the NFS volume
 NFS_VM_BACKUP_DIR=mybackups 
@@ -104,8 +104,9 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=09/28/2010
-VER=1
+LAST_MODIFIED_DATE=2011_03_13
+VERSION=1
+VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
 VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
@@ -117,7 +118,7 @@ printUsage() {
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Created: 11/17/2008"
-        echo "# Last modified: ${LAST_MODIFIED_DATE} version ${VER}"
+        echo "# Last modified: ${LAST_MODIFIED_DATE} Version ${VERSION}"
         echo "#"
         echo "###############################################################################"
         echo
@@ -142,8 +143,8 @@ printUsage() {
         echo -e "\t$0 -f vms_to_backup -c vm_backup_configs"
 	echo -e "\nBackup VMs using global ghettoVCB configuration file"
         echo -e "\t$0 -f vms_to_backup -g /global/ghettoVCB.conf"
-        echo -e "\nOutput will log to /tmp/ghettoVCB.log"
-        echo -e "\t$0 -f vms_to_backup -l /tmp/ghettoVCB.log"
+        echo -e "\nOutput will log to /tmp/ghettoVCB.log (consider logging to local or remote datastore to persist logs)"
+        echo -e "\t$0 -f vms_to_backup -l /vmfs/volume/local-storage/ghettoVCB.log"
 	echo -e "\nDry run (no backup will take place)"
         echo -e "\t$0 -f vms_to_backup -d dryrun"
         echo
@@ -158,7 +159,8 @@ logger() {
 		TIME=$(date +%F" "%H:%M:%S)
        		if [ "${LOG_TO_STDOUT}" -eq 1 ]; then
                		echo -e "${TIME} -- ${LOG_TYPE}: ${MSG}"
-        	else
+		fi
+        	if [ -n "${LOG_OUTPUT}" ]; then
        	        	echo -e "${TIME} -- ${LOG_TYPE}: ${MSG}" >> "${LOG_OUTPUT}"
 		fi
 
@@ -175,16 +177,17 @@ sanityCheck() {
                 reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
         fi
 
-	#log to stdout or to logfile
+	#always log to STDOUT, use "> /dev/null" to ignore output
+	LOG_TO_STDOUT=1
+	
+	#if no logfile then provide default logfile in /tmp
         if [ -z "${LOG_OUTPUT}" ]; then
-                LOG_TO_STDOUT=1
-                REDIRECT=/dev/null
-        else
-                LOG_TO_STDOUT=0
-                REDIRECT=${LOG_OUTPUT}
+		LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S).log"
                 echo "Logging output to \"${LOG_OUTPUT}\" ..."
-                touch "${LOG_OUTPUT}"
         fi
+        touch "${LOG_OUTPUT}"
+        # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
+        REDIRECT=${LOG_OUTPUT}
 
 	if [[ ${NUM_OF_ARGS} -lt 1 ]] || [[ ${NUM_OF_ARGS} -gt 12 ]]; then
 		logger "info" "ERROR: Incorrect number of arguments!"
@@ -231,7 +234,7 @@ sanityCheck() {
                 if [[ "${ESX_VERSION}" == "3.5.0" ]] || [[ "${ESX_VERSION}" == "3i" ]]; then
                         VER=3
                 else
-                        echo "You're not running ESX(i) 3.5+ or 4.0+!"
+                        echo "You're not running ESX(i) 3.5+ or 4.x+!"
                         exit 1
                 fi
         fi
@@ -242,27 +245,11 @@ sanityCheck() {
 		elif [ -f /bin/nc ]; then 
 			NC_BIN=/bin/nc
 		fi
-                echo -ne "HELO $(hostname -s)\r\n" >> "${EMAIL_LOG_OUTPUT}"
-                echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_OUTPUT}"
-                echo -ne "RCPT TO: <${EMAIL_TO}>\r\n" >> "${EMAIL_LOG_OUTPUT}"
-                echo -ne "DATA\r\n" >> "${EMAIL_LOG_OUTPUT}"
-		echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_OUTPUT}"
-		echo -ne "To: ${EMAIL_TO}\r\n" >> "${EMAIL_LOG_OUTPUT}"
-		echo -ne "Subject: ghettoVCB - $(date)\r\n" >> "${EMAIL_LOG_OUTPUT}" 
         else 
 		EMAIL_LOG=0
 	fi
 
-        if [ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]; then
-                ${VMWARE_CMD} hostsvc/summary/fsvolume | awk '{print $1}' | grep "^${NFS_LOCAL_NAME}" > /dev/null 2>&1
-                if [ ! $? -eq 0 ]; then
-                        #1 = readonly
-                        #0 = readwrite
-                        ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
-                fi
-        fi
-
-        if [ ! "`whoami`" == "root" ]; then
+        if [ ! $(whoami) == "root" ]; then
                 logger "info" "This script needs to be executed by \"root\"!"
 		echo "ERROR: This script needs to be executed by \"root\"!"
                 exit 1
@@ -345,7 +332,8 @@ reConfigureBackupParam() {
 }
 
 dumpHostInfo() {
-	logger "debug" "HOST BUILD: $(vmware -v)"
+	logger "debug" "HOST VERSION: $(vmware -v)"
+	logger "debug" "HOST LEVEL: $(vmware -l)"
 	logger "debug" "HOSTNAME: $(hostname)\n"
 }
 
@@ -371,7 +359,7 @@ findVMDK() {
 
 getVMDKs() {
 	#get all VMDKs listed in .vmx file
-        VMDKS_FOUND=`grep -iE '(scsi|ide)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}'`
+        VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
 
         TMP_IFS=${IFS}
         IFS=${ORIG_IFS}
@@ -379,7 +367,7 @@ getVMDKs() {
         for DISK in ${VMDKS_FOUND};
         do
         	#extract the SCSI ID and use it to check for valid vmdk disk
-                SCSI_ID=`echo ${DISK%%.*}`
+                SCSI_ID=$(echo ${DISK%%.*})
                 grep -i "${SCSI_ID}.present" "${VMX_PATH}" | grep -i "true" > /dev/null 2>&1
                 #if valid, then we use the vmdk file
                 if [ $? -eq 0 ]; then
@@ -389,18 +377,30 @@ getVMDKs() {
 	                	grep -i "${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
         	                #if we find the device type is of scsi-disk, then proceed
                 	        if [ $? -eq 0 ]; then
-                        		DISK=`grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}'`
-                                	VMDKS="${DISK}:${VMDKS}"
+                        		DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+					DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+					DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
+                                	VMDKS="${DISK}###${DISK_SIZE}:${VMDKS}"
+					TOTAL_VM_SIZE=$((TOTAL_VM_SIZE+DISK_SIZE))
 	                        else
         	                        #if the deviceType is NULL for IDE which it is, thanks for the inconsistency VMware
                 	                #we'll do one more level of verification by checking to see if an ext. of .vmdk exists
                         	        #since we can not rely on the deviceType showing "ide-hardDisk"
                                 	grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | grep -i ".vmdk" > /dev/null 2>&1
 	                                if [ $? -eq 0 ]; then
-        	                	        DISK=`grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}'`
-                	                        VMDKS="${DISK}:${VMDKS}"
+        	                	        DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+						DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+						DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
+                	                        VMDKS="${DISK}###${DISK_SIZE}:${VMDKS}"
+						TOTAL_VM_SIZE=$((TOTAL_VM_SIZE_IN+DISK_SIZE))
                         	        fi
                         	fi
+			else
+				#independent disks are not affected by snapshots, hence they can not be backed up
+				DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+				DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+				DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
+				INDEP_VMDKS="${DISK}###${DISK_SIZE}:${INDEP_VMDKS}"
 			fi
                 fi
          done
@@ -408,8 +408,15 @@ getVMDKs() {
 }
 
 dumpVMConfigurations() {
+	logger "info" "CONFIG - VERSION = ${VERSION_STRING}"
 	logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
 	logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
+	if [ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]; then
+		logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
+		logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
+		logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
+		logger "info" "CONFIG - NFS_MOUNT = ${NFS_MOUNT}"
+	fi
         logger "info" "CONFIG - VM_BACKUP_ROTATION_COUNT = ${VM_BACKUP_ROTATION_COUNT}"
 	logger "info" "CONFIG - VM_BACKUP_DIR_NAMING_CONVENTION = ${VM_BACKUP_DIR_NAMING_CONVENTION}"
         logger "info" "CONFIG - DISK_BACKUP_FORMAT = ${DISK_BACKUP_FORMAT}"
@@ -420,11 +427,7 @@ dumpVMConfigurations() {
 	logger "info" "CONFIG - POWER_DOWN_TIMEOUT = ${POWER_DOWN_TIMEOUT}"
 	logger "info" "CONFIG - SNAPSHOT_TIMEOUT = ${SNAPSHOT_TIMEOUT}"
         logger "info" "CONFIG - LOG_LEVEL = ${LOG_LEVEL}"
-	if [ -z "${LOG_OUTPUT}" ]; then
-		logger "info" "CONFIG - BACKUP_LOG_OUTPUT = stdout"
-	else
-		logger "info" "CONFIG - BACKUP_LOG_OUTPUT = ${LOG_OUTPUT}"
-	fi
+	logger "info" "CONFIG - BACKUP_LOG_OUTPUT = ${LOG_OUTPUT}"
         logger "info" "CONFIG - VM_SNAPSHOT_MEMORY = ${VM_SNAPSHOT_MEMORY}"
         logger "info" "CONFIG - VM_SNAPSHOT_QUIESCE = ${VM_SNAPSHOT_QUIESCE}"
         logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
@@ -436,7 +439,7 @@ dumpVMConfigurations() {
 		logger "info" "CONFIG - EMAIL_FROM = ${EMAIL_FROM}"
 		logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
 	fi
-	logger "info" "\n"
+	logger "info" ""
 }
 
 checkVMBackupRotation() {
@@ -497,15 +500,87 @@ checkVMBackupRotation() {
 	IFS=${ORIG_IFS}
 }
 
+storageInfo() {
+	SECTION=$1
+
+	#SOURCE DATASTORE
+        SRC_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+        SRC_DATASTORE_FREE=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i "freespace" | awk '{print $3}' | sed 's/,//g')
+        SRC_DATASTORE_BLOCKSIZE=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i blockSizeMb | awk '{print $3}' | sed 's/,//g')
+        if [ -z ${SRC_DATASTORE_BLOCKSIZE} ]; then
+        	SRC_DATASTORE_BLOCKSIZE="NA"
+                SRC_DATASTORE_MAX_FILE_SIZE="NA"
+        else
+        	case ${SRC_DATASTORE_BLOCKSIZE} in
+                	1)SRC_DATASTORE_MAX_FILE_SIZE="256 GB";;
+                        2)SRC_DATASTORE_MAX_FILE_SIZE="512 GB";;
+                        4)SRC_DATASTORE_MAX_FILE_SIZE="1024 GB";;
+                        8)SRC_DATASTORE_MAX_FILE_SIZE="2048 GB";;
+                esac
+        fi
+        SRC_DATASTORE_CAPACITY_GB=$(echo "${SRC_DATASTORE_CAPACITY}" | awk '{printf "%.1f\n",$1/1024/1024/1024}')
+        SRC_DATASTORE_FREE_GB=$(echo "${SRC_DATASTORE_FREE}" | awk '{printf "%.1f\n",$1/1024/1024/1024}')
+
+	#DESTINATION DATASTORE
+        DST_VOL_1=$(echo "${VM_BACKUP_VOLUME#/*/*/}")
+        DST_DATASTORE=$(echo "${DST_VOL_1%%/*}")
+        DST_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+        DST_DATASTORE_FREE=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i "freespace" | awk '{print $3}' | sed 's/,//g')
+        DST_DATASTORE_BLOCKSIZE=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i blockSizeMb | awk '{print $3}' | sed 's/,//g')
+       	if [ -z ${DST_DATASTORE_BLOCKSIZE} ]; then
+               	DST_DATASTORE_BLOCKSIZE="NA"
+                DST_DATASTORE_MAX_FILE_SIZE="NA"
+       	else
+                case ${DST_DATASTORE_BLOCKSIZE} in
+        	        1)DST_DATASTORE_MAX_FILE_SIZE="256 GB";;
+                        2)DST_DATASTORE_MAX_FILE_SIZE="512 GB";;
+                        4)DST_DATASTORE_MAX_FILE_SIZE="1024 GB";;
+                        8)DST_DATASTORE_MAX_FILE_SIZE="2048 GB";;
+                esac
+       	fi
+       	DST_DATASTORE_CAPACITY_GB=$(echo "${DST_DATASTORE_CAPACITY}" | awk '{printf "%.1f\n",$1/1024/1024/1024}')
+       	DST_DATASTORE_FREE_GB=$(echo "${DST_DATASTORE_FREE}" | awk '{printf "%.1f\n",$1/1024/1024/1024}')
+
+        logger "debug" "Storage Information ${SECTION} backup: "
+        logger "debug" "SRC_DATASTORE: ${VMFS_VOLUME}"
+        logger "debug" "SRC_DATASTORE_CAPACITY: ${SRC_DATASTORE_CAPACITY_GB} GB"
+        logger "debug" "SRC_DATASTORE_FREE: ${SRC_DATASTORE_FREE_GB} GB"
+        logger "debug" "SRC_DATASTORE_BLOCKSIZE: ${SRC_DATASTORE_BLOCKSIZE}"
+        logger "debug" "SRC_DATASTORE_MAX_FILE_SIZE: ${SRC_DATASTORE_MAX_FILE_SIZE}"
+        logger "debug" ""
+        logger "debug" "DST_DATASTORE: ${DST_DATASTORE}"
+        logger "debug" "DST_DATASTORE_CAPACITY: ${DST_DATASTORE_CAPACITY_GB} GB"
+        logger "debug" "DST_DATASTORE_FREE: ${DST_DATASTORE_FREE_GB} GB"
+        logger "debug" "DST_DATASTORE_BLOCKSIZE: ${DST_DATASTORE_BLOCKSIZE}"
+        logger "debug" "DST_DATASTORE_MAX_FILE_SIZE: ${DST_DATASTORE_MAX_FILE_SIZE}"
+        if [[ "${SRC_DATASTORE_BLOCKSIZE}" != "NA" ]] && [[ "${DST_DATASTORE_BLOCKSIZE}" != "NA" ]]; then
+        	if [ "${SRC_DATASTORE_BLOCKSIZE}" -lt "${DST_DATASTORE_BLOCKSIZE}" ]; then
+                	logger "debug" ""
+                        logger "debug" "SRC VMFS blocksze of ${SRC_DATASTORE_BLOCKSIZE}MB is less than DST VMFS blocksize of ${DST_DATASTORE_BLOCKSIZE}MB which can be an issue for VM snapshots"
+                fi
+        fi
+	logger "debug" ""
+}
+
 ghettoVCB() {
 	VM_INPUT=$1
 	VM_OK=0
 	VM_FAILED=0
 	VMDK_FAILED=0
 
-	captureDefaultConfigurations
+	dumpHostInfo
 
-	dumpHostInfo	
+        if [ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]; then
+                VM_BACKUP_VOLUME="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}"
+                if [ "${LOG_LEVEL}" !=  "dryrun" ]; then
+                        #1 = readonly
+                        #0 = readwrite
+                        logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
+			${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
+                fi
+        fi
+
+	captureDefaultConfigurations
 
 	if [ "${USE_GLOBAL_CONF}" -eq 1 ]; then
 		logger "info" "CONFIG - USING GLOBAL GHETTOVCB CONFIGURATION FILE = ${GLOBAL_CONF}"
@@ -525,7 +600,7 @@ ghettoVCB() {
 	ORIG_IFS=${IFS}
 	IFS='
 '
-	for VM_NAME in `cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'`;
+	for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//');
         do
 		IGNORE_VM=0
 		if [ "${EXCLUDE_SOME_VMS}" -eq 1 ]; then
@@ -535,7 +610,7 @@ ghettoVCB() {
 			fi
 		fi
 	
-		VM_ID=`grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $1}' | sed 's/"//g'`
+		VM_ID=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
 		#ensure default value if one is not selected or variable is null
                 if [ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]; then
@@ -547,10 +622,15 @@ ghettoVCB() {
                         dumpVMConfigurations
                 fi
 
-		VMFS_VOLUME=`grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g'`
-		VMX_CONF=`grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g'`
+		VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
+		VMX_CONF=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
 		VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
-		VMX_DIR=`dirname "${VMX_PATH}"`
+		VMX_DIR=$(dirname "${VMX_PATH}")
+
+		#storage info
+		if [[ ! -z ${VM_ID} ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
+			storageInfo "before"
+		fi
 
 		#ignore VM as it's in the exclusion list
 		if [ "${IGNORE_VM}" -eq 1 ]; then 
@@ -569,15 +649,37 @@ ghettoVCB() {
 			logger "dryrun" "VMX_CONF: $VMX_CONF"
 			logger "dryrun" "VMFS_VOLUME: $VMFS_VOLUME"
 			logger "dryrun" "VMDK(s): "
+			TOTAL_VM_SIZE=0
 			getVMDKs
 			OLD_IFS="${IFS}"
                         IFS=":"
                         for j in ${VMDKS};
                         do
-				logger "dryrun" "\t${j}"
+				J_VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
+				J_VMDK_SIZE=$(echo "${j}" | awk -F "###" '{print $2}')
+				logger "dryrun" "\t${J_VMDK}\t${J_VMDK_SIZE} GB"
+			done
+			logger "dryrun" "INDEPENDENT VMDK(s): "
+			for k in ${INDEP_VMDKS};
+			do
+				K_VMDK=$(echo "${k}" | awk -F "###" '{print $1}')
+				K_VMDK_SIZE=$(echo "${k}" | awk -F "###" '{print $2}')
+				logger "dryrun" "\t${K_VMDK}\t${K_VMDK_SIZE} GB"
 			done
 			IFS="${OLD_IFS}"
-			VMDKS=""	
+			VMDKS=""
+			INDEP_VMDKS=""
+			logger "dryrun" "TOTAL_VM_SIZE_TO_BACKUP: ${TOTAL_VM_SIZE} GB"
+
+			ls "${VMX_DIR}" | grep -q delta > /dev/null 2>&1;
+			if [ $? -eq 0 ]; then
+				logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
+				logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
+			fi
+
+			if [ ${TOTAL_VM_SIZE} -eq 0 ]; then
+				logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EMPTY VMDK LIST!"
+			fi
 			logger "dryrun" "###############################################\n"
 
                 #checks to see if the VM has any snapshots to start with
@@ -598,7 +700,7 @@ ghettoVCB() {
 	                else
 	                	BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
                                 if [[ -z ${VM_BACKUP_VOLUME} ]]; then
-                                        logger "info" "ERROR: Variable VM_BACKUP_DIR was not defined"
+                                        logger "info" "ERROR: Variable VM_BACKUP_VOLUME was not defined"
                                         exit 1
                                 fi
 	                fi
@@ -614,12 +716,23 @@ ghettoVCB() {
 
 			# directory name of the individual Virtual Machine backup followed by naming convention followed by count
 			VM_BACKUP_DIR="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
+
+			# Rsync relative path variable if needed
+			RSYNC_LINK_DIR="./${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
+
 			mkdir -p "${VM_BACKUP_DIR}"
 
 			cp "${VMX_PATH}" "${VM_BACKUP_DIR}"
 
+			#new variable to keep track on whether VM has independent disks
+			VM_HAS_INDEPENDENT_DISKS=0
+
 			#extract all valid VMDK(s) from VM
 			getVMDKs
+
+			if [ ! -z ${INDEP_VMDKS} ]; then
+				VM_HAS_INDEPENDENT_DISKS=1
+			fi
 
 			ORGINAL_VM_POWER_STATE=$(${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | tail -1)
 			CONTINUE_TO_BACKUP=1	
@@ -697,7 +810,7 @@ ghettoVCB() {
 					IFS=":"
 					for j in ${VMDKS};
 					do
-						VMDK="${j}"
+						VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
 						isVMDKFound=0
 		
 						findVMDK "${VMDK}"
@@ -810,27 +923,38 @@ ghettoVCB() {
                 	        fi
                         	IFS=${TMP_IFS}
 	                        VMDKS=""
+				INDEP_VMDKS=""
 
 				endTimer
 				if [ ${SNAP_SUCCESS} -ne 1 ]; then
 					logger "info" "ERROR: Unable to backup ${VM_NAME} due to snapshot creation!\n"
+					echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" > ${VM_BACKUP_DIR}/STATUS.error
 					VM_FAILED=1
 				elif [ ${VM_VMDK_FAILED} -ne 0 ]; then
 					logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
+					echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" > ${VM_BACKUP_DIR}/STATUS.error
+					VMDK_FAILED=1
+				elif [ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]; then
+					logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
+					echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
 					VMDK_FAILED=1
 				else
 					logger "info" "Successfully completed backup for ${VM_NAME}!\n"
+					echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
 					VM_OK=1
 				
 					#experimental
 				        #create symlink for the very last backup to support rsync functionality for additinal replication
 				        if [ "${RSYNC_LINK}" -eq 1 ]; then
 						SYMLINK_DST=${VM_BACKUP_DIR}
+						SYMLINK_DST1=${RSYNC_LINK_DIR}
 						SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-				                logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST}\""
-				                ln -s "${SYMLINK_DST}" "${SYMLINK_SRC}"
+				                logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+				                ln -s "${SYMLINK_DST1}" "${SYMLINK_SRC}"
 				        fi
 
+					#storage info after backup
+                        		storageInfo "after"
 				fi
 	                else
 				if [ ${CONTINUE_TO_BACKUP} -eq 0 ]; then
@@ -845,7 +969,9 @@ ghettoVCB() {
         done
 	unset IFS
 
-        if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] && [[ ${UNMOUNT_NFS} -eq 1 ]] ; then
+        if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] && [[ ${UNMOUNT_NFS} -eq 1 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
+		logger "debug" "Sleeping for 30seconds before unmounting NFS volume"
+		sleep 30
 		${VMWARE_CMD} hostsvc/datastore/destroy ${NFS_LOCAL_NAME}	
 	fi
 }
@@ -853,24 +979,31 @@ ghettoVCB() {
 getFinalStatus() {
 	if [[ "${LOG_TYPE}" == "dryrun" ]]; then
 		FINAL_STATUS="###### Final status: OK, only a dryrun. ######"
+		LOG_STATUS="OK"
 		EXIT=0
 	elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
 		FINAL_STATUS="###### Final status: All VMs backed up OK! ######"
+		LOG_STATUS="OK"
 		EXIT=0
 	elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
 		FINAL_STATUS="###### Final status: WARNING: All VMs backed up, but some disk(s) failed! ######"
+		LOG_STATUS="WARNING"
 		EXIT=3
 	elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 0 ]]; then
 		FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up! ######"
+		LOG_STATUS="ERROR"
 		EXIT=4
 	elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 1 ]]; then
 		FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
+		LOG_STATUS="ERROR"
 		EXIT=5
 	elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then
 		FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
+		LOG_STATUS="ERROR"
 		EXIT=6
 	elif [[ $VM_OK == 0 ]]; then
 		FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
+		LOG_STATUS="ERROR"
 		EXIT=7
 	fi
 	logger "info" "$FINAL_STATUS\n"
@@ -879,18 +1012,32 @@ getFinalStatus() {
 sendMail() {
 	#close email message
 	if [ "${EMAIL_LOG}" -eq 1 ]; then
+                echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
+                echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
+                echo -ne "RCPT TO: <${EMAIL_TO}>\r\n" >> "${EMAIL_LOG_HEADER}"
+                echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
+                echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
+                echo -ne "To: ${EMAIL_TO}\r\n" >> "${EMAIL_LOG_HEADER}"
+                echo -ne "Subject: ghettoVCB - ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+
         	echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
 	        echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
 
-		"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_OUTPUT}" > /dev/null 2>&1
+		cat "${EMAIL_LOG_HEADER}" > "${EMAIL_LOG_CONTENT}"
+		cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
+
+		"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
 		if [ $? -eq 1 ]; then
 			logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
 		fi
 		
 		if [ "${EMAIL_DEBUG}" -eq 1 ]; then
-			logger "info" "Email log output will not be deleted and is stored in ${EMAIL_LOG_OUTPUT}\n"
+			logger "info" "Email log output will not be deleted and is stored in ${EMAIL_LOG_CONTENT}"
 		else
-			rm -rf "${EMAIL_LOG_OUTPUT}"
+			logger "info" "Removing ${EMAIL_LOG_OUTPUT} and ${EMAIL_LOG_HEADER} and ${EMAIL_LOG_CONTENT}"
+			rm -f "${EMAIL_LOG_OUTPUT}"
+			rm -f "${EMAIL_LOG_HEADER}"
+			rm -f "${EMAIL_LOG_CONTENT}"
 		fi
 	fi
 }
@@ -911,7 +1058,9 @@ USE_VM_CONF=0
 USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
+EMAIL_LOG_HEADER=/tmp/ghettoVCB-email-$$.header
 EMAIL_LOG_OUTPUT=/tmp/ghettoVCB-email-$$.log
+EMAIL_LOG_CONTENT=/tmp/ghettoVCB-email-$$.content
 
 #read user input
 while getopts ":af:c:g:l:d:e:" ARGS; do
