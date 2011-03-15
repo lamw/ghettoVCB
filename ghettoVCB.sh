@@ -104,7 +104,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_03_13
+LAST_MODIFIED_DATE=2011_03_14
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -659,9 +659,11 @@ ghettoVCB() {
 				J_VMDK_SIZE=$(echo "${j}" | awk -F "###" '{print $2}')
 				logger "dryrun" "\t${J_VMDK}\t${J_VMDK_SIZE} GB"
 			done
+			HAS_INDEPENDENT_DISKS=0
 			logger "dryrun" "INDEPENDENT VMDK(s): "
 			for k in ${INDEP_VMDKS};
 			do
+				HAS_INDEPENDENT_DISKS=1
 				K_VMDK=$(echo "${k}" | awk -F "###" '{print $1}')
 				K_VMDK_SIZE=$(echo "${k}" | awk -F "###" '{print $2}')
 				logger "dryrun" "\t${K_VMDK}\t${K_VMDK_SIZE} GB"
@@ -670,6 +672,10 @@ ghettoVCB() {
 			VMDKS=""
 			INDEP_VMDKS=""
 			logger "dryrun" "TOTAL_VM_SIZE_TO_BACKUP: ${TOTAL_VM_SIZE} GB"
+			if [ ${HAS_INDEPENDENT_DISKS} -eq 1 ]; then
+				logger "dryrun" "Snapshots can not be taken for indepdenent disks!"
+				logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
+			fi
 
 			ls "${VMX_DIR}" | grep -q delta > /dev/null 2>&1;
 			if [ $? -eq 0 ]; then
