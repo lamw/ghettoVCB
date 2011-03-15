@@ -104,7 +104,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_03_14
+LAST_MODIFIED_DATE=2011_03_15
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -378,7 +378,12 @@ getVMDKs() {
         	                #if we find the device type is of scsi-disk, then proceed
                 	        if [ $? -eq 0 ]; then
                         		DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
-					DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+					echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
+					if [ $? -eq 0 ]; then
+						DISK_SIZE_IN_SECTORS=$(cat "${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+					else
+						DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+					fi
 					DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
                                 	VMDKS="${DISK}###${DISK_SIZE}:${VMDKS}"
 					TOTAL_VM_SIZE=$((TOTAL_VM_SIZE+DISK_SIZE))
@@ -389,7 +394,12 @@ getVMDKs() {
                                 	grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | grep -i ".vmdk" > /dev/null 2>&1
 	                                if [ $? -eq 0 ]; then
         	                	        DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
-						DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+						echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
+						if [ $? -eq 0 ]; then
+							DISK_SIZE_IN_SECTORS=$(cat "${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+						else
+							DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+						fi
 						DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
                 	                        VMDKS="${DISK}###${DISK_SIZE}:${VMDKS}"
 						TOTAL_VM_SIZE=$((TOTAL_VM_SIZE_IN+DISK_SIZE))
@@ -398,7 +408,12 @@ getVMDKs() {
 			else
 				#independent disks are not affected by snapshots, hence they can not be backed up
 				DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
-				DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+				echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
+				if [ $? -eq 0 ]; then
+					DISK_SIZE_IN_SECTORS=$(cat "${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+				else
+					DISK_SIZE_IN_SECTORS=$(cat "${VMX_DIR}/${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
+				fi
 				DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
 				INDEP_VMDKS="${DISK}###${DISK_SIZE}:${INDEP_VMDKS}"
 			fi
