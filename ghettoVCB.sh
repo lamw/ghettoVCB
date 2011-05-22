@@ -104,7 +104,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_03_15
+LAST_MODIFIED_DATE=2011_05_22
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -332,15 +332,19 @@ reConfigureBackupParam() {
 }
 
 dumpHostInfo() {
-	logger "debug" "HOST VERSION: $(vmware -v)"
-	logger "debug" "HOST LEVEL: $(vmware -l)"
+	VERSION=$(vmware -v)
+	logger "debug" "HOST VERSION: ${VERSION}"
+	echo ${VERSION} | grep "Server 3i" > /dev/null 2>&1
+	if [ $? -eq 1 ]; then
+		logger "debug" "HOST LEVEL: $(vmware -l)"
+	fi
 	logger "debug" "HOSTNAME: $(hostname)\n"
 }
 
 findVMDK() {
         VMDK_TO_SEARCH_FOR=$1
 
-	if [ "${USE_VM_CONF}" -eq 1 ]; then
+	#if [ "${USE_VM_CONF}" -eq 1 ]; then
 		logger "debug" "findVMDK() - Searching for VMDK: \"${VMDK_TO_SEARCH_FOR}\" to backup"
 
 		OLD_IFS2="${IFS}"
@@ -353,8 +357,8 @@ findVMDK() {
         	                isVMDKFound=1
 			fi	
 	        done
-		IFS="{OLD_IFS2}"
-	fi
+		IFS="${OLD_IFS2}"
+	#fi
 }
 
 getVMDKs() {
@@ -418,8 +422,9 @@ getVMDKs() {
 				INDEP_VMDKS="${DISK}###${DISK_SIZE}:${INDEP_VMDKS}"
 			fi
                 fi
-         done
-         IFS=${TMP_IFS}
+	done
+        IFS=${TMP_IFS}
+	logger "debug" "getVMDKs() - ${VMDKS}"
 }
 
 dumpVMConfigurations() {
@@ -459,14 +464,15 @@ dumpVMConfigurations() {
 
 checkVMBackupRotation() {
 	local BACKUP_DIR_PATH=$1
+	local VM_TO_SEARCH_FOR=$2
 
 	#default rotation if variable is not defined
         if [ -z ${VM_BACKUP_ROTATION_COUNT} ]; then
                 VM_BACKUP_ROTATION_COUNT=1
         fi
 
-	LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}")
-	BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | head -"${VM_BACKUP_ROTATION_COUNT}")
+	LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
+	BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
 
 	ORIG_IFS=${IFS}
         IFS='
@@ -692,7 +698,7 @@ ghettoVCB() {
 				logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
 			fi
 
-			ls "${VMX_DIR}" | grep -q delta > /dev/null 2>&1;
+			ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1;
 			if [ $? -eq 0 ]; then
 				logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
 				logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
@@ -704,7 +710,7 @@ ghettoVCB() {
 			logger "dryrun" "###############################################\n"
 
                 #checks to see if the VM has any snapshots to start with
-                elif ls "${VMX_DIR}" | grep -q delta > /dev/null 2>&1; then
+                elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
 	                logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
 			VM_FAILED=1
 
@@ -816,6 +822,7 @@ ghettoVCB() {
 						if [ ${START_ITERATION} -ge ${SNAPSHOT_TIMEOUT} ]; then
 							logger "info" "Snapshot timed out, failed to create snapshot: \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
 							SNAP_SUCCESS=0
+							echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
 							break
 						fi
 
@@ -916,7 +923,7 @@ ghettoVCB() {
 
 	                                #do not continue until all snapshots have been committed
         	                        logger "info" "Removing snapshot from ${VM_NAME} ..."
-                	                while ls "${VMX_DIR}" | grep -q delta;
+                	                while ls "${VMX_DIR}" | grep -q "\-delta\.vmdk";
                         	        do
                                 	        sleep 5
 	                                done
@@ -931,16 +938,27 @@ ghettoVCB() {
 				TMP_IFS=${IFS}
                 	        IFS=${ORIG_IFS}
 	                        if [ ${ENABLE_COMPRESSION} -eq 1 ]; then
-        	                        logger "info" "Compressing VM backup \"${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz\"..."
+					COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
+
+        	                        logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
 					if [ ${IS_4I} -eq 1 ]; then
-						busybox tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
+						busybox tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
 					else 
-						tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
+						tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
+					fi
+					
+					# verify compression
+					if [[ $? -eq 0 ]] && [[ -f "${COMPRESSED_ARCHIVE_FILE}" ]]; then
+						logger "info" "Successfully compressed backup for ${VM_NAME}!\n"
+						COMPRESSED_OK=1
+					else
+						logger "info" "Error in compressing ${VM_NAME}!\n"
+						COMPRESSED_OK=0
 					fi
                 	                rm -rf "${VM_BACKUP_DIR}"
-					checkVMBackupRotation "${BACKUP_DIR}"
+					checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
 	                        else
-        	                        checkVMBackupRotation "${BACKUP_DIR}"
+        	                	checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
                 	        fi
                         	IFS=${TMP_IFS}
 	                        VMDKS=""
@@ -949,26 +967,30 @@ ghettoVCB() {
 				endTimer
 				if [ ${SNAP_SUCCESS} -ne 1 ]; then
 					logger "info" "ERROR: Unable to backup ${VM_NAME} due to snapshot creation!\n"
-					echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" > ${VM_BACKUP_DIR}/STATUS.error
+					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
 					VM_FAILED=1
 				elif [ ${VM_VMDK_FAILED} -ne 0 ]; then
 					logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
-					echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" > ${VM_BACKUP_DIR}/STATUS.error
+					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" >> ${VM_BACKUP_DIR}/STATUS.error
 					VMDK_FAILED=1
 				elif [ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]; then
 					logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
-					echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
+					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
 					VMDK_FAILED=1
 				else
 					logger "info" "Successfully completed backup for ${VM_NAME}!\n"
-					echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
+					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
 					VM_OK=1
 				
 					#experimental
 				        #create symlink for the very last backup to support rsync functionality for additinal replication
 				        if [ "${RSYNC_LINK}" -eq 1 ]; then
 						SYMLINK_DST=${VM_BACKUP_DIR}
-						SYMLINK_DST1=${RSYNC_LINK_DIR}
+						if [ ${ENABLE_COMPRESSION} -eq 1 ]; then
+							SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
+						else
+							SYMLINK_DST1=${RSYNC_LINK_DIR}
+						fi
 						SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
 				                logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
 				                ln -s "${SYMLINK_DST1}" "${SYMLINK_SRC}"
@@ -1030,28 +1052,48 @@ getFinalStatus() {
 	logger "info" "$FINAL_STATUS\n"
 }
 
+buildHeaders() {
+	EMAIL_ADDRESS=$1	
+
+	echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
+        echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "Subject: ghettoVCB - ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+
+        echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
+        echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
+
+        cat "${EMAIL_LOG_HEADER}" > "${EMAIL_LOG_CONTENT}"
+        cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
+}
+
 sendMail() {
 	#close email message
 	if [ "${EMAIL_LOG}" -eq 1 ]; then
-                echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
-                echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
-                echo -ne "RCPT TO: <${EMAIL_TO}>\r\n" >> "${EMAIL_LOG_HEADER}"
-                echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
-                echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
-                echo -ne "To: ${EMAIL_TO}\r\n" >> "${EMAIL_LOG_HEADER}"
-                echo -ne "Subject: ghettoVCB - ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
-
-        	echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
-	        echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
-
-		cat "${EMAIL_LOG_HEADER}" > "${EMAIL_LOG_CONTENT}"
-		cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
-
-		"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
-		if [ $? -eq 1 ]; then
-			logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+		echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
+		if [ $? -eq 0 ]; then
+			ORIG_IFS=${IFS}
+			IFS=','
+			for i in ${EMAIL_TO};
+			do
+				buildHeaders ${i}	
+				"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+				if [ $? -eq 1 ]; then
+					logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+				fi
+			done
+			unset IFS
+		else
+			buildHeaders ${EMAIL_TO}
+			"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+                        if [ $? -eq 1 ]; then
+                        	logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+                        fi
 		fi
-		
+			
 		if [ "${EMAIL_DEBUG}" -eq 1 ]; then
 			logger "info" "Email log output will not be deleted and is stored in ${EMAIL_LOG_CONTENT}"
 		else
