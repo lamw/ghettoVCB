@@ -104,7 +104,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_05_22
+LAST_MODIFIED_DATE=2011_06_28
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -114,7 +114,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5 & 4.x+"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+ and 5.0"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Created: 11/17/2008"
@@ -221,13 +221,13 @@ sanityCheck() {
                 VMWARE_CMD=/bin/vim-cmd
                 VMKFSTOOLS_CMD=/sbin/vmkfstools
         else
-                logger "info" "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+ or 4.0+!"
-                echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+ or 4.0+!"
+                logger "info" "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+ or 5.0!"
+                echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+ or 5.0!"
                 exit 1
         fi
 
         ESX_VERSION=$(vmware -v | awk '{print $3}')
-        if [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
+        if [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]] || [[ "${ESX_VERSION}" == "5.0.0" ]]; then
                 VER=4
         else
                 ESX_VERSION=$(vmware -v | awk '{print $4}')
