@@ -77,7 +77,9 @@ sanityCheck() {
         fi
 
         ESX_VERSION=$(vmware -v | awk '{print $3}')
-	if [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
+        if [[ "${ESX_VERSION}" == "5.0.0" ]]; then
+        	VER=5
+        elif [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
                 VER=4
         else
                 ESX_VERSION=$(vmware -v | awk '{print $4}')
@@ -149,9 +151,18 @@ ghettoVCBrestore() {
 		elif [ "${RESTORE_DISK_FORMAT}" -eq 4 ]; then
                         FORMAT_STRING=eagerzeroedthick
 		fi
-
+		
 		IS_DIR=0		
 		#supports DIR or .TGZ from ghettoVCB.sh ONLY!
+		if [ ${VM_TO_RESTORE##*.} == 'gz' ]; then
+			echo "GZ found, extracting ..."
+			if [ ! -f /bin/bash ]; then
+				busybox tar -xzf $VM_TO_RESTORE -C `dirname $VM_TO_RESTORE`
+			else
+				tar -xzf $VM_TO_RESTORE -C `dirname $VM_TO_RESTORE`
+			fi
+			VM_TO_RESTORE=${VM_TO_RESTORE%.*}
+		fi
 		if [ -d "${VM_TO_RESTORE}" ]; then
 			#figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
 			VM_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")

@@ -5,4 +5,4 @@
 # 3 = thin
 # 4 = eagerzeroedthick
 # e.g.
-# "/vmfs/volumes/dlgCore-NFS-bigboi.VM-Backups/WILLIAM_BACKUPS/STA202I/STA202I-2009-08-18--1;/vmfs/volumes/himalaya-local-SATA.RE4-GP:Storage;1"
+# "/vmfs/volumes/someBackupDataStore/path/to/backup/server.gz;/vmfs/volumes/someServerDataStore;1"
