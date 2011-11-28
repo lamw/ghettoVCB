@@ -929,7 +929,7 @@ ghettoVCB() {
 				#powered on VMs only w/snapshots
                         	if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
 					if [ "${NEW_VIMCMD_SNAPSHOT}" == "yes" ]; then
-						SNAPSHOT_ID=$(${VMWARE_CMD} vmsvc/snapshot.get 16 | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep "Snapshot Id" | awk -F ":" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+						SNAPSHOT_ID=$(${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep "Snapshot Id" | awk -F ":" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
 						${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} ${SNAPSHOT_ID} > /dev/null 2>&1
 					else
                                 		${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} > /dev/null 2>&1
