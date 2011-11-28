@@ -41,9 +41,6 @@ ENABLE_COMPRESSION=0
 ####### NEW PARAMS #########
 ############################
 
-# Disk adapter type: buslogic, lsilogic or ide
-ADAPTER_FORMAT=buslogic
-
 # Include VMs memory when taking snapshot
 VM_SNAPSHOT_MEMORY=0
 
@@ -82,6 +79,9 @@ EMAIL_DEBUG=0
 # Email log 1=yes, 0=no 
 EMAIL_LOG=0
 
+# Email Delay Interval from NC (netcat) - default 1
+EMAIL_DELAY_INTERVAL=1
+
 # Email SMTP server
 EMAIL_SERVER=auroa.primp-industries.com
 
@@ -104,7 +104,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_06_28
+LAST_MODIFIED_DATE=2011_11_19
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -117,6 +117,7 @@ printUsage() {
         echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+ and 5.0"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
+	echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
         echo "# Created: 11/17/2008"
         echo "# Last modified: ${LAST_MODIFIED_DATE} Version ${VERSION}"
         echo "#"
@@ -227,17 +228,25 @@ sanityCheck() {
         fi
 
         ESX_VERSION=$(vmware -v | awk '{print $3}')
-        if [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]] || [[ "${ESX_VERSION}" == "5.0.0" ]]; then
+	if [[ "${ESX_VERSION}" == "5.0.0" ]]; then
+		VER=5
+        elif [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
                 VER=4
         else
                 ESX_VERSION=$(vmware -v | awk '{print $4}')
                 if [[ "${ESX_VERSION}" == "3.5.0" ]] || [[ "${ESX_VERSION}" == "3i" ]]; then
                         VER=3
                 else
-                        echo "You're not running ESX(i) 3.5+ or 4.x+!"
+                        echo "You're not running ESX(i) 3.5, 4.x, 5.x!"
                         exit 1
                 fi
         fi
+
+	NEW_VIMCMD_SNAPSHOT="no"
+	${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		NEW_VIMCMD_SNAPSHOT="yes"
+	fi
 
 	if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
 		if [ -f /usr/bin/nc ]; then
@@ -284,7 +293,6 @@ captureDefaultConfigurations() {
 	DEFAULT_POWER_DOWN_TIMEOUT="${POWER_DOWN_TIMEOUT}"
 	DEFAULT_SNAPSHOT_TIMEOUT="${SNAPSHOT_TIMEOUT}"
 	DEFAULT_ENABLE_COMPRESSION="${ENABLE_COMPRESSION}"
-	DEFAULT_ADAPTER_FORMAT="${ADAPTER_FORMAT}"
 	DEFAULT_VM_SNAPSHOT_MEMORY="${VM_SNAPSHOT_MEMORY}"
 	DEFAULT_VM_SNAPSHOT_QUIESCE="${VM_SNAPSHOT_QUIESCE}"
 	DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
@@ -302,7 +310,6 @@ useDefaultConfigurations() {
 	POWER_DOWN_TIMEOUT="${DEFAULT_POWER_DOWN_TIMEOUT}"
 	SNAPSHOT_TIMEOUT="${DEFAULT_SNAPSHOT_TIMEOUT}"
 	ENABLE_COMPRESSION="${DEFAULT_ENABLE_COMPRESSION}"
-	ADAPTER_FORMAT="${DEFAULT_ADAPTER_FORMAT}"
 	VM_SNAPSHOT_MEMORY="${DEFAULT_VM_SNAPSHOT_MEMORY}"
 	VM_SNAPSHOT_QUIESCE="${DEFAULT_VM_SNAPSHOT_QUIESCE}"
 	VMDK_FILES_TO_BACKUP="all"
@@ -440,7 +447,6 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - VM_BACKUP_ROTATION_COUNT = ${VM_BACKUP_ROTATION_COUNT}"
 	logger "info" "CONFIG - VM_BACKUP_DIR_NAMING_CONVENTION = ${VM_BACKUP_DIR_NAMING_CONVENTION}"
         logger "info" "CONFIG - DISK_BACKUP_FORMAT = ${DISK_BACKUP_FORMAT}"
-        logger "info" "CONFIG - ADAPTER_FORMAT = ${ADAPTER_FORMAT}"
         logger "info" "CONFIG - POWER_VM_DOWN_BEFORE_BACKUP = ${POWER_VM_DOWN_BEFORE_BACKUP}"
         logger "info" "CONFIG - ENABLE_HARD_POWER_OFF = ${ENABLE_HARD_POWER_OFF}"
 	logger "info" "CONFIG - ITER_TO_WAIT_SHUTDOWN = ${ITER_TO_WAIT_SHUTDOWN}"
@@ -456,6 +462,7 @@ dumpVMConfigurations() {
 		logger "info" "CONFIG - EMAIL_DEBUG = ${EMAIL_DEBUG}"
 		logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
 		logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
+		logger "info" "CONFIG - EMAIL_DELAY_INTERVAL = ${EMAIL_DELAY_INTERVAL}"
 		logger "info" "CONFIG - EMAIL_FROM = ${EMAIL_FROM}"
 		logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
 	fi
@@ -863,7 +870,7 @@ ghettoVCB() {
 							if [ $? -eq 1 ]; then
 								FORMAT_OPTION="UNKNOWN"
 								if [ "${DISK_BACKUP_FORMAT}" == "zeroedthick" ]; then
-									if [ "${VER}" == "4" ]; then
+									if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] ; then
 										FORMAT_OPTION="zeroedthick"
 									else
 										FORMAT_OPTION=""
@@ -873,7 +880,7 @@ ghettoVCB() {
 		                		        	elif [ "${DISK_BACKUP_FORMAT}" == "thin" ]; then
 									 FORMAT_OPTION="thin"
 				                	        elif [ "${DISK_BACKUP_FORMAT}" == "eagerzeroedthick" ]; then
-									if [ "${VER}" == "4" ]; then
+									if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] ; then
 										FORMAT_OPTION="eagerzeroedthick"
                         	        				else
 										FORMAT_OPTION=""
@@ -887,6 +894,8 @@ ghettoVCB() {
 									VMDK_OUTPUT=$(mktemp /tmp/ghettovcb.XXXXXX)
 									tail -f "${VMDK_OUTPUT}" &
 									TAIL_PID=$!
+
+									ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
 
 									if  [ -z "${FORMAT_OPTION}" ] ; then
 										logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
@@ -919,7 +928,12 @@ ghettoVCB() {
 
 				#powered on VMs only w/snapshots
                         	if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
-                                	${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} > /dev/null 2>&1
+					if [ "${NEW_VIMCMD_SNAPSHOT}" == "yes" ]; then
+						SNAPSHOT_ID=$(${VMWARE_CMD} vmsvc/snapshot.get 16 | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep "Snapshot Id" | awk -F ":" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+						${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} ${SNAPSHOT_ID} > /dev/null 2>&1
+					else
+                                		${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} > /dev/null 2>&1
+					fi
 
 	                                #do not continue until all snapshots have been committed
         	                        logger "info" "Removing snapshot from ${VM_NAME} ..."
@@ -977,6 +991,22 @@ ghettoVCB() {
 					logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
 					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
 					VMDK_FAILED=1
+					#experimental
+                                        #create symlink for the very last backup to support rsync functionality for additinal replication
+                                        if [ "${RSYNC_LINK}" -eq 1 ]; then
+                                                SYMLINK_DST=${VM_BACKUP_DIR}
+                                                if [ ${ENABLE_COMPRESSION} -eq 1 ]; then
+                                                        SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
+                                                else
+                                                        SYMLINK_DST1=${RSYNC_LINK_DIR}
+                                                fi
+                                                SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                                                logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                                                ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                                        fi
+
+                                        #storage info after backup
+                                        storageInfo "after"
 				else
 					logger "info" "Successfully completed backup for ${VM_NAME}!\n"
 					[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
@@ -993,7 +1023,7 @@ ghettoVCB() {
 						fi
 						SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
 				                logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
-				                ln -s "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+				                ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
 				        fi
 
 					#storage info after backup
@@ -1073,6 +1103,15 @@ buildHeaders() {
 sendMail() {
 	#close email message
 	if [ "${EMAIL_LOG}" -eq 1 ]; then
+		#validate firewall has email port open for ESXi 5
+		if [ "${VER}" == "5" ]; then
+			/sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+			if [ $? -eq 1 ]; then
+				logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
+				logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+			fi
+		fi
+
 		echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
 		if [ $? -eq 0 ]; then
 			ORIG_IFS=${IFS}
@@ -1080,7 +1119,7 @@ sendMail() {
 			for i in ${EMAIL_TO};
 			do
 				buildHeaders ${i}	
-				"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+				"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
 				if [ $? -eq 1 ]; then
 					logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
 				fi
@@ -1088,7 +1127,7 @@ sendMail() {
 			unset IFS
 		else
 			buildHeaders ${EMAIL_TO}
-			"${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+			"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                         if [ $? -eq 1 ]; then
                         	logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
                         fi
