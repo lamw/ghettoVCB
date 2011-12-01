@@ -111,6 +111,8 @@ VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
 VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 
+WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
+
 printUsage() {
         echo "###############################################################################"
         echo "#"
@@ -131,6 +133,7 @@ printUsage() {
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
+        echo "   -w     ghettoVCB work directory (default: ${WORKDIR})"
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
@@ -617,7 +620,7 @@ ghettoVCB() {
     fi
 
     #dump out all virtual machines allowing for spaces now
-    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' | sed '1,1d' > /tmp/vms_list
+    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' | sed '1,1d' > ${WORKDIR}/vms_list
 
     if [[ "${BACKUP_ALL_VMS}" -eq 1 ]] ; then
         ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print ""$2""}' | sed '1,1d' | sed '/^$/d' > "${VM_INPUT}"
@@ -635,7 +638,7 @@ ghettoVCB() {
             fi
         fi
     
-        VM_ID=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+        VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
         #ensure default value if one is not selected or variable is null
         if [[ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]] ; then
@@ -647,8 +650,8 @@ ghettoVCB() {
             dumpVMConfigurations
         fi
 
-        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
-        VMX_CONF=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
+        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
+        VMX_CONF=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
         VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
         VMX_DIR=$(dirname "${VMX_PATH}")
 
@@ -888,7 +891,7 @@ ghettoVCB() {
                                     logger "info" "ERROR: wrong DISK_BACKUP_FORMAT \"${DISK_BACKUP_FORMAT}\ specified for ${VM_NAME}"
                                     VM_VMDK_FAILED=1
                                 else
-                                    VMDK_OUTPUT=$(mktemp /tmp/ghettovcb.XXXXXX)
+                                    VMDK_OUTPUT=$(mktemp ${WORKDIR}/ghettovcb.XXXXXX)
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
 
@@ -1153,12 +1156,12 @@ USE_VM_CONF=0
 USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
-EMAIL_LOG_HEADER=/tmp/ghettoVCB-email-$$.header
-EMAIL_LOG_OUTPUT=/tmp/ghettoVCB-email-$$.log
-EMAIL_LOG_CONTENT=/tmp/ghettoVCB-email-$$.content
+EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
+EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
+EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 
 #read user input
-while getopts ":af:c:g:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:l:d:e:" ARGS; do
     case $ARGS in
         a)
             BACKUP_ALL_VMS=1
@@ -1186,6 +1189,9 @@ while getopts ":af:c:g:l:d:e:" ARGS; do
         d)
             LOG_LEVEL="${OPTARG}"
             ;;
+        w)
+            WORKDIR="${OPTARG}"
+            ;;
         :)
             echo "Option -${OPTARG} requires an argument."
             exit 1
@@ -1200,31 +1206,30 @@ done
 #performs a check on the number of commandline arguments + verifies $2 is a valid file
 sanityCheck $# 
 
-LOCKDIR=/tmp/ghettoVCB.lock
 
-if mkdir "${LOCKDIR}"
+if mkdir "${WORKDIR}"
 then
     GHETTOVCB_PID=$$
 
     logger "info" "============================== ghettoVCB LOG START ==============================\n"
-    logger "debug" "Succesfully acquired lock directory - ${LOCKDIR}\n"
+    logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
     # Remove lockdir when the script finishes, or when it receives a signal
-    trap 'rm -rf "${LOCKDIR}"' 0    # remove directory when script finishes
+    trap 'rm -rf "${WORKDIR}"' 0    # remove directory when script finishes
     trap "exit 2" 1 2 3 13 15       # terminate script when receiving signal
 
     ghettoVCB ${VM_FILE}
 
     getFinalStatus
 
-    logger "debug" "Succesfully removed lock directory - ${LOCKDIR}\n"
+    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
     logger "info" "============================== ghettoVCB LOG END ================================\n"
 
     sendMail
 
-    rm -rf "${LOCKDIR}"
+    rm -rf "${WORKDIR}"
     exit $EXIT
 else 
-    logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${LOCKDIR}\n"
+    logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
     exit 1
 fi
