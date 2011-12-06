@@ -111,8 +111,6 @@ VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
 VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 
-WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
-
 printUsage() {
         echo "###############################################################################"
         echo "#"
@@ -125,11 +123,12 @@ printUsage() {
         echo "#"
         echo "###############################################################################"
         echo
-        echo "Usage: $0 -f [VM_BACKUP_UP_LIST] -c [VM_CONFIG_DIR] -l [LOG_FILE] -d [DEBUG_LEVEL] -g [GLOBAL_CONF] -e [VM_EXCLUSION_LIST]"
+        echo "Usage: $(basename $0) [options]"
         echo
         echo "OPTIONS:"
         echo "   -a     Backup all VMs on host"
         echo "   -f     List of VMs to backup"
+        echo "   -m     Name of VM to backup (overrides -f)"
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
@@ -139,6 +138,8 @@ printUsage() {
         echo "(e.g.)"
         echo -e "\nBackup VMs stored in a list"
         echo -e "\t$0 -f vms_to_backup"
+        echo -e "\nBackup a single VM"
+        echo -e "\t$0 -m vm_to_backup"
         echo -e "\nBackup all VMs residing on this host"
         echo -e "\t$0 -a"
         echo -e "\nBackup all VMs residing on this host except for the VMs in the exclusion list"
@@ -1161,15 +1162,21 @@ EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
 EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 
 #read user input
-while getopts ":af:c:g:w:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     case $ARGS in
+        w)
+            WORKDIR="${OPTARG}"
+            ;;
         a)
             BACKUP_ALL_VMS=1
-            VM_FILE="/tmp/backup_all_vms_on-$(hostname)"
-            touch "${VM_FILE}"
+            VM_FILE='${WORKDIR}/vm-input-list'
             ;;          
         f)  
             VM_FILE="${OPTARG}"
+            ;;
+        m)  
+            VM_FILE='${WORKDIR}/vm-input-list'
+            VM_ARG="${OPTARG}"
             ;;
         e)
             VM_EXCLUSION_FILE="${OPTARG}"
@@ -1189,9 +1196,6 @@ while getopts ":af:c:g:w:l:d:e:" ARGS; do
         d)
             LOG_LEVEL="${OPTARG}"
             ;;
-        w)
-            WORKDIR="${OPTARG}"
-            ;;
         :)
             echo "Option -${OPTARG} requires an argument."
             exit 1
@@ -1203,18 +1207,27 @@ while getopts ":af:c:g:w:l:d:e:" ARGS; do
     esac
 done
 
-#performs a check on the number of commandline arguments + verifies $2 is a valid file
-sanityCheck $# 
+WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
+#expand VM_FILE 
+[[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
 
-if mkdir "${WORKDIR}"
-then
+if mkdir "${WORKDIR}"; then
+
+    # create VM_FILE if we're backing up everything/specified a vm on the command line
+    [[ $BACKUP_ALL_VMS -eq 1 ]] && touch ${VM_FILE}
+    [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
+
+    # performs a check on the number of commandline arguments + verifies $2 is a valid file
+    sanityCheck $# 
+
     GHETTOVCB_PID=$$
+    echo $GHETTOVCB_PID > "${WORKDIR}/pid"
 
     logger "info" "============================== ghettoVCB LOG START ==============================\n"
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
-    # Remove lockdir when the script finishes, or when it receives a signal
+    # remove lockdir when the script finishes, or when it receives a signal
     trap 'rm -rf "${WORKDIR}"' 0    # remove directory when script finishes
     trap "exit 2" 1 2 3 13 15       # terminate script when receiving signal
 
