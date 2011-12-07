@@ -69,12 +69,10 @@ NFS_LOCAL_NAME=backup
 # Name of backup directory for VMs residing on the NFS volume
 NFS_VM_BACKUP_DIR=mybackups 
 
+
 ############################
 ######### EMAIL ############
 ############################ 
-
-# Email debug 1=yes, 0=no
-EMAIL_DEBUG=0
 
 # Email log 1=yes, 0=no 
 EMAIL_LOG=0
@@ -93,6 +91,14 @@ EMAIL_FROM=root@ghettoVCB
 
 # Email RCPT
 EMAIL_TO=auroa@primp-industries.com
+
+
+############################
+######### DEBUG ############
+############################ 
+
+# Do not remove workdir on exit: 1=yes, 0=no 
+WORKDIR_DEBUG=0
 
 ########################## DO NOT MODIFY PAST THIS LINE ##########################
 
@@ -179,11 +185,17 @@ logger() {
 sanityCheck() {
     NUM_OF_ARGS=$1
 
+    # refuse to run with an unsafe workdir
+    if [[ "${WORKDIR}" == "/" ]]; then
+        echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
+        exit 1
+    fi
+
     if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
         reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
     fi
 
-    #always log to STDOUT, use "> /dev/null" to ignore output
+    # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
     
     #if no logfile then provide default logfile in /tmp
@@ -301,7 +313,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SNAPSHOT_QUIESCE="${VM_SNAPSHOT_QUIESCE}"
     DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
     DEFAULT_EMAIL_LOG="${EMAIL_LOG}"
-    DEFAULT_EMAIL_DEBUG="${EMAIL_DEBUG}"
+    DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
 }
 
 useDefaultConfigurations() {
@@ -318,7 +330,7 @@ useDefaultConfigurations() {
     VM_SNAPSHOT_QUIESCE="${DEFAULT_VM_SNAPSHOT_QUIESCE}"
     VMDK_FILES_TO_BACKUP="all"
     EMAIL_LOG=0
-    EMAIL_DEBUG=0
+    WORKDIR_DEBUG=0
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -465,12 +477,12 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
-        logger "info" "CONFIG - EMAIL_DEBUG = ${EMAIL_DEBUG}"
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
         logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
         logger "info" "CONFIG - EMAIL_DELAY_INTERVAL = ${EMAIL_DELAY_INTERVAL}"
         logger "info" "CONFIG - EMAIL_FROM = ${EMAIL_FROM}"
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
+        logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
     logger "info" ""
 }
@@ -1131,15 +1143,6 @@ sendMail() {
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
         fi
-            
-        if [[ "${EMAIL_DEBUG}" -eq 1 ]] ; then
-            logger "info" "Email log output will not be deleted and is stored in ${EMAIL_LOG_CONTENT}"
-        else
-            logger "info" "Removing ${EMAIL_LOG_OUTPUT} and ${EMAIL_LOG_HEADER} and ${EMAIL_LOG_CONTENT}"
-            rm -f "${EMAIL_LOG_OUTPUT}"
-            rm -f "${EMAIL_LOG_HEADER}"
-            rm -f "${EMAIL_LOG_CONTENT}"
-        fi
     fi
 }
 
@@ -1228,7 +1231,12 @@ if mkdir "${WORKDIR}"; then
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
     # remove lockdir when the script finishes, or when it receives a signal
-    trap 'rm -rf "${WORKDIR}"' 0    # remove directory when script finishes
+    if [[ "${WORKDIR_DEBUG}" -eq 1 ]] ; then
+        logger "info" "Workdir: ${WORKDIR} will not! be removed on exit"
+    else
+        trap 'rm -rf "${WORKDIR}"' 0    # remove workdir when script finishes
+    fi
+
     trap "exit 2" 1 2 3 13 15       # terminate script when receiving signal
 
     ghettoVCB ${VM_FILE}
@@ -1240,7 +1248,8 @@ if mkdir "${WORKDIR}"; then
 
     sendMail
 
-    rm -rf "${WORKDIR}"
+    # practically redundant
+    [[ "${WORKDIR_DEBUG}" -eq 0 ]] && rm -rf "${WORKDIR}"
     exit $EXIT
 else 
     logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
