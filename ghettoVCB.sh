@@ -188,7 +188,7 @@ sanityCheck() {
     
     #if no logfile then provide default logfile in /tmp
     if [[ -z "${LOG_OUTPUT}" ]] ; then
-        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S).log"
+        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
     fi
 
