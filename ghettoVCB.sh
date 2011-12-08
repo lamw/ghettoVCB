@@ -1160,9 +1160,6 @@ USE_VM_CONF=0
 USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
-EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
-EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
-EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 
 #read user input
 while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
@@ -1212,8 +1209,13 @@ done
 
 WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
+EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
+EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
+EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
+
 #expand VM_FILE 
 [[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
+
 
 if mkdir "${WORKDIR}"; then
 
