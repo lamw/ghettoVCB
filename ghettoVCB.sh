@@ -5,7 +5,7 @@
 ##################################################################
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
-VM_BACKUP_VOLUME=/vmfs/volumes/dlgCore-NFS-bigboi.VM-Backups/WILLIAM_BACKUPS
+VM_BACKUP_VOLUME=/vmfs/volumes/backups
 
 # Format output of VMDK backup
 # zeroedthick
@@ -245,20 +245,6 @@ sanityCheck() {
         exit 1
     fi
 
-    ESX_VERSION=$(vmware -v | awk '{print $3}')
-    if [[ "${ESX_VERSION}" == "5.0.0" ]]; then
-        VER=5
-        elif [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
-            VER=4
-        else
-            ESX_VERSION=$(vmware -v | awk '{print $4}')
-            if [[ "${ESX_VERSION}" == "3.5.0" ]] || [[ "${ESX_VERSION}" == "3i" ]]; then
-                VER=3
-            else
-                echo "You're not running ESX(i) 3.5, 4.x, 5.x!"
-                exit 1
-            fi
-        fi
 
 	ESX_VERSION=$(vmware -v | awk '{print $3}')
 
