@@ -724,11 +724,11 @@ ghettoVCB() {
             logger "dryrun" "###############################################\n"
 
             #checks to see if the VM has any snapshots to start with
-        elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-            logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
-            VM_FAILED=1
-
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
+	        if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+			logger "info" "removing existing snapshots for $VM_NAME..."
+			$VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID}
+		fi
             #nfs case and backup to root path of your NFS mount     
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then 
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
