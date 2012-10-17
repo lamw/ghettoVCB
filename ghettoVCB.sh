@@ -69,12 +69,10 @@ NFS_LOCAL_NAME=backup
 # Name of backup directory for VMs residing on the NFS volume
 NFS_VM_BACKUP_DIR=mybackups 
 
+
 ############################
 ######### EMAIL ############
 ############################ 
-
-# Email debug 1=yes, 0=no
-EMAIL_DEBUG=0
 
 # Email log 1=yes, 0=no 
 EMAIL_LOG=0
@@ -93,6 +91,14 @@ EMAIL_FROM=root@ghettoVCB
 
 # Email RCPT
 EMAIL_TO=auroa@primp-industries.com
+
+
+############################
+######### DEBUG ############
+############################ 
+
+# Do not remove workdir on exit: 1=yes, 0=no 
+WORKDIR_DEBUG=0
 
 ########################## DO NOT MODIFY PAST THIS LINE ##########################
 
@@ -123,19 +129,23 @@ printUsage() {
         echo "#"
         echo "###############################################################################"
         echo
-        echo "Usage: $0 -f [VM_BACKUP_UP_LIST] -c [VM_CONFIG_DIR] -l [LOG_FILE] -d [DEBUG_LEVEL] -g [GLOBAL_CONF] -e [VM_EXCLUSION_LIST]"
+        echo "Usage: $(basename $0) [options]"
         echo
         echo "OPTIONS:"
         echo "   -a     Backup all VMs on host"
         echo "   -f     List of VMs to backup"
+        echo "   -m     Name of VM to backup (overrides -f)"
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
+        echo "   -w     ghettoVCB work directory (default: ${WORKDIR})"
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
         echo -e "\nBackup VMs stored in a list"
         echo -e "\t$0 -f vms_to_backup"
+        echo -e "\nBackup a single VM"
+        echo -e "\t$0 -m vm_to_backup"
         echo -e "\nBackup all VMs residing on this host"
         echo -e "\t$0 -a"
         echo -e "\nBackup all VMs residing on this host except for the VMs in the exclusion list"
@@ -175,16 +185,22 @@ logger() {
 sanityCheck() {
     NUM_OF_ARGS=$1
 
+    # refuse to run with an unsafe workdir
+    if [[ "${WORKDIR}" == "/" ]]; then
+        echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
+        exit 1
+    fi
+
     if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
         reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
     fi
 
-    #always log to STDOUT, use "> /dev/null" to ignore output
+    # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
     
     #if no logfile then provide default logfile in /tmp
     if [[ -z "${LOG_OUTPUT}" ]] ; then
-        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S).log"
+        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
     fi
 
@@ -301,7 +317,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SNAPSHOT_QUIESCE="${VM_SNAPSHOT_QUIESCE}"
     DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
     DEFAULT_EMAIL_LOG="${EMAIL_LOG}"
-    DEFAULT_EMAIL_DEBUG="${EMAIL_DEBUG}"
+    DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
 }
 
 useDefaultConfigurations() {
@@ -318,7 +334,7 @@ useDefaultConfigurations() {
     VM_SNAPSHOT_QUIESCE="${DEFAULT_VM_SNAPSHOT_QUIESCE}"
     VMDK_FILES_TO_BACKUP="all"
     EMAIL_LOG=0
-    EMAIL_DEBUG=0
+    WORKDIR_DEBUG=0
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -465,12 +481,12 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
-        logger "info" "CONFIG - EMAIL_DEBUG = ${EMAIL_DEBUG}"
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
         logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
         logger "info" "CONFIG - EMAIL_DELAY_INTERVAL = ${EMAIL_DELAY_INTERVAL}"
         logger "info" "CONFIG - EMAIL_FROM = ${EMAIL_FROM}"
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
+        logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
     logger "info" ""
 }
@@ -621,7 +637,7 @@ ghettoVCB() {
     fi
 
     #dump out all virtual machines allowing for spaces now
-    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' | sed '1,1d' > /tmp/vms_list
+    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' | sed '1,1d' > ${WORKDIR}/vms_list
 
     if [[ "${BACKUP_ALL_VMS}" -eq 1 ]] ; then
         ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print ""$2""}' | sed '1,1d' | sed '/^$/d' > "${VM_INPUT}"
@@ -639,7 +655,7 @@ ghettoVCB() {
             fi
         fi
     
-        VM_ID=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+        VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
         #ensure default value if one is not selected or variable is null
         if [[ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]] ; then
@@ -651,8 +667,8 @@ ghettoVCB() {
             dumpVMConfigurations
         fi
 
-        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
-        VMX_CONF=$(grep -E "\"${VM_NAME}\"" /tmp/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
+        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
+        VMX_CONF=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
         VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
         VMX_DIR=$(dirname "${VMX_PATH}")
 
@@ -892,7 +908,7 @@ ghettoVCB() {
                                     logger "info" "ERROR: wrong DISK_BACKUP_FORMAT \"${DISK_BACKUP_FORMAT}\ specified for ${VM_NAME}"
                                     VM_VMDK_FAILED=1
                                 else
-                                    VMDK_OUTPUT=$(mktemp /tmp/ghettovcb.XXXXXX)
+                                    VMDK_OUTPUT=$(mktemp ${WORKDIR}/ghettovcb.XXXXXX)
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
 
@@ -1131,15 +1147,6 @@ sendMail() {
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
         fi
-            
-        if [[ "${EMAIL_DEBUG}" -eq 1 ]] ; then
-            logger "info" "Email log output will not be deleted and is stored in ${EMAIL_LOG_CONTENT}"
-        else
-            logger "info" "Removing ${EMAIL_LOG_OUTPUT} and ${EMAIL_LOG_HEADER} and ${EMAIL_LOG_CONTENT}"
-            rm -f "${EMAIL_LOG_OUTPUT}"
-            rm -f "${EMAIL_LOG_HEADER}"
-            rm -f "${EMAIL_LOG_CONTENT}"
-        fi
     fi
 }
 
@@ -1157,20 +1164,23 @@ USE_VM_CONF=0
 USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
-EMAIL_LOG_HEADER=/tmp/ghettoVCB-email-$$.header
-EMAIL_LOG_OUTPUT=/tmp/ghettoVCB-email-$$.log
-EMAIL_LOG_CONTENT=/tmp/ghettoVCB-email-$$.content
 
 #read user input
-while getopts ":af:c:g:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     case $ARGS in
+        w)
+            WORKDIR="${OPTARG}"
+            ;;
         a)
             BACKUP_ALL_VMS=1
-            VM_FILE="/tmp/backup_all_vms_on-$(hostname)"
-            touch "${VM_FILE}"
+            VM_FILE='${WORKDIR}/vm-input-list'
             ;;          
         f)  
             VM_FILE="${OPTARG}"
+            ;;
+        m)  
+            VM_FILE='${WORKDIR}/vm-input-list'
+            VM_ARG="${OPTARG}"
             ;;
         e)
             VM_EXCLUSION_FILE="${OPTARG}"
@@ -1201,34 +1211,53 @@ while getopts ":af:c:g:l:d:e:" ARGS; do
     esac
 done
 
-#performs a check on the number of commandline arguments + verifies $2 is a valid file
-sanityCheck $# 
+WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
-LOCKDIR=/tmp/ghettoVCB.lock
+EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
+EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
+EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 
-if mkdir "${LOCKDIR}"
-then
+#expand VM_FILE 
+[[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
+
+
+if mkdir "${WORKDIR}"; then
+
+    # create VM_FILE if we're backing up everything/specified a vm on the command line
+    [[ $BACKUP_ALL_VMS -eq 1 ]] && touch ${VM_FILE}
+    [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
+
+    # performs a check on the number of commandline arguments + verifies $2 is a valid file
+    sanityCheck $# 
+
     GHETTOVCB_PID=$$
+    echo $GHETTOVCB_PID > "${WORKDIR}/pid"
 
     logger "info" "============================== ghettoVCB LOG START ==============================\n"
-    logger "debug" "Succesfully acquired lock directory - ${LOCKDIR}\n"
+    logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
-    # Remove lockdir when the script finishes, or when it receives a signal
-    trap 'rm -rf "${LOCKDIR}"' 0    # remove directory when script finishes
+    # remove lockdir when the script finishes, or when it receives a signal
+    if [[ "${WORKDIR_DEBUG}" -eq 1 ]] ; then
+        logger "info" "Workdir: ${WORKDIR} will not! be removed on exit"
+    else
+        trap 'rm -rf "${WORKDIR}"' 0    # remove workdir when script finishes
+    fi
+
     trap "exit 2" 1 2 3 13 15       # terminate script when receiving signal
 
     ghettoVCB ${VM_FILE}
 
     getFinalStatus
 
-    logger "debug" "Succesfully removed lock directory - ${LOCKDIR}\n"
+    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
     logger "info" "============================== ghettoVCB LOG END ================================\n"
 
     sendMail
 
-    rm -rf "${LOCKDIR}"
+    # practically redundant
+    [[ "${WORKDIR_DEBUG}" -eq 0 ]] && rm -rf "${WORKDIR}"
     exit $EXIT
 else 
-    logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${LOCKDIR}\n"
+    logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
     exit 1
 fi
