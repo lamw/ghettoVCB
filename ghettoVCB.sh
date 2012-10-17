@@ -228,19 +228,13 @@ sanityCheck() {
         fi
 
         ESX_VERSION=$(vmware -v | awk '{print $3}')
-	if [[ "${ESX_VERSION}" == "5.0.0" ]]; then
-		VER=5
-        elif [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
-                VER=4
-        else
-                ESX_VERSION=$(vmware -v | awk '{print $4}')
-                if [[ "${ESX_VERSION}" == "3.5.0" ]] || [[ "${ESX_VERSION}" == "3i" ]]; then
-                        VER=3
-                else
-                        echo "You're not running ESX(i) 3.5, 4.x, 5.x!"
-                        exit 1
-                fi
-        fi
+
+	case "${ESX_VERSION}" in
+		5.0.0|5.1.0)	VER=5; break;;
+		4.0.0|4.1.0)	VER=4; break;;
+		3.5.0|3i)		VER=3; break;;
+		*)				echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
+		esac
 
 	NEW_VIMCMD_SNAPSHOT="no"
 	${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
@@ -257,12 +251,6 @@ sanityCheck() {
         else 
 		EMAIL_LOG=0
 	fi
-
-        if [ ! $(whoami) == "root" ]; then
-                logger "info" "This script needs to be executed by \"root\"!"
-		echo "ERROR: This script needs to be executed by \"root\"!"
-                exit 1
-        fi
 }
 
 startTimer() {
