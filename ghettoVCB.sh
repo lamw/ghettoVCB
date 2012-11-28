@@ -92,6 +92,9 @@ EMAIL_FROM=root@ghettoVCB
 # Email RCPT
 EMAIL_TO=auroa@primp-industries.com
 
+# Comma separated list of VM startup/shutdown ordering
+VM_SHUTDOWN_ORDER=
+VM_STARTUP_ORDER=
 
 ############################
 ######### DEBUG ############
@@ -116,6 +119,7 @@ VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
 VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
+
 
 printUsage() {
         echo "###############################################################################"
@@ -594,6 +598,71 @@ storageInfo() {
 logger "debug" ""
 }
 
+powerOff() {
+    VM_NAME="$1"
+    VM_ID="$2"
+    POWER_OFF_EC=0
+
+    START_ITERATION=0
+    logger "info" "Powering off initiated for ${VM_NAME}, backup will not begin until VM is off..."
+
+    ${VMWARE_CMD} vmsvc/power.shutdown ${VM_ID} > /dev/null 2>&1
+    while ${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | grep -i "Powered on" > /dev/null 2>&1; do
+        #enable hard power off code
+        if [[ ${ENABLE_HARD_POWER_OFF} -eq 1 ]] ; then
+            if [[ ${START_ITERATION} -ge ${ITER_TO_WAIT_SHUTDOWN} ]] ; then
+                logger "info" "Hard power off occured for ${VM_NAME}, waited for $((ITER_TO_WAIT_SHUTDOWN*60)) seconds"
+                ${VMWARE_CMD} vmsvc/power.off ${VM_ID} > /dev/null 2>&1
+                #this is needed for ESXi, even the hard power off did not take affect right away
+                sleep 60
+                break
+            fi
+        fi
+
+        logger "info" "VM is still on - Iteration: ${START_ITERATION} - sleeping for 60secs (Duration: $((START_ITERATION*60)) seconds)"
+        sleep 60
+
+        #logic to not backup this VM if unable to shutdown
+        #after certain timeout period
+        if [[ ${START_ITERATION} -ge ${POWER_DOWN_TIMEOUT} ]] ; then
+            logger "info" "Unable to power off ${VM_NAME}, waited for $((POWER_DOWN_TIMEOUT*60)) seconds! Ignoring ${VM_NAME} for backup!"
+            POWER_OFF_EC=1
+            break
+        fi
+        START_ITERATION=$((START_ITERATION + 1))
+    done
+    if [[ ${POWER_OFF_EC} -eq 0 ]] ; then
+        logger "info" "VM is powerdOff"
+    fi
+}
+
+powerOn() {
+    VM_NAME="$1"
+    VM_ID="$2"
+    POWER_ON_EC=0
+
+    START_ITERATION=0
+    logger "info" "Powering on initiated for ${VM_NAME}"
+
+    ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
+    while ${VMWARE_CMD} vmsvc/get.guest ${VM_ID} | grep -i "toolsNotRunning" > /dev/null 2>&1; do
+        logger "info" "VM is still not booted - Iteration: ${START_ITERATION} - sleeping for 60secs (Duration: $((START_ITERATION*60)) seconds)"
+        sleep 60
+
+        #logic to not backup this VM if unable to shutdown
+        #after certain timeout period
+        if [[ ${START_ITERATION} -ge ${POWER_DOWN_TIMEOUT} ]] ; then
+            logger "info" "Unable to detect started tools on ${VM_NAME}, waited for $((POWER_DOWN_TIMEOUT*60)) seconds!"
+            POWER_ON_EC=1
+            break
+        fi
+        START_ITERATION=$((START_ITERATION + 1))
+    done
+    if [[ ${POWER_ON_EC} -eq 0 ]] ; then
+        logger "info" "VM is powerdOn"
+    fi
+}
+
 ghettoVCB() {
     VM_INPUT=$1
     VM_OK=0
@@ -632,6 +701,21 @@ ghettoVCB() {
     ORIG_IFS=${IFS}
     IFS='
 '
+    if [[ ${#VM_SHUTDOWN_ORDER} -gt 0 ]]; then
+        logger "debug" "VM Shutdown Order: ${VM_SHUTDOWN_ORDER}\n"
+        IFS2="${IFS}"
+        IFS=","
+        for VM_NAME in ${VM_SHUTDOWN_ORDER}; do
+            VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+            powerOff "${VM_NAME}" "${VM_ID}"
+            if [[ ${POWER_OFF_EC} -eq 1 ]]; then
+                logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
+                exit 1
+            fi
+        done
+
+        IFS="${IFS2}"
+    fi
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
@@ -779,37 +863,10 @@ ghettoVCB() {
 
             #section that will power down a VM prior to taking a snapshot and backup and power it back on
             if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
-                START_ITERATION=0
-                logger "info" "Powering off initiated for ${VM_NAME}, backup will not begin until VM is off..."
-
-                ${VMWARE_CMD} vmsvc/power.shutdown ${VM_ID} > /dev/null 2>&1
-                while ${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | grep -i "Powered on" > /dev/null 2>&1; do
-                    #enable hard power off code
-                    if [[ ${ENABLE_HARD_POWER_OFF} -eq 1 ]] ; then
-                        if [[ ${START_ITERATION} -ge ${ITER_TO_WAIT_SHUTDOWN} ]] ; then
-                            logger "info" "Hard power off occured for ${VM_NAME}, waited for $((ITER_TO_WAIT_SHUTDOWN*60)) seconds" 
-                            ${VMWARE_CMD} vmsvc/power.off ${VM_ID} > /dev/null 2>&1 
-                            #this is needed for ESXi, even the hard power off did not take affect right away
-                            sleep 60
-                            break
-                        fi
-                    fi
-
-                    logger "info" "VM is still on - Iteration: ${START_ITERATION} - sleeping for 60secs (Duration: $((START_ITERATION*60)) seconds)"
-                    sleep 60
-
-                    #logic to not backup this VM if unable to shutdown
-                    #after certain timeout period
-                    if [[ ${START_ITERATION} -ge ${POWER_DOWN_TIMEOUT} ]] ; then
-                        logger "info" "Unable to power off ${VM_NAME}, waited for $((POWER_DOWN_TIMEOUT*60)) seconds! Ignoring ${VM_NAME} for backup!"
-                        VM_FAILED=1
-                        CONTINUE_TO_BACKUP=0
-                        break
-                    fi
-                    START_ITERATION=$((START_ITERATION + 1))
-                done
-                if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] ; then
-                    logger "info" "VM is powerdOff"
+                powerOff "${VM_NAME}" "${VM_ID}"
+                if [[ ${POWER_OFF_EC} -eq 1 ]]; then
+                    VM_FAILED=1
+                    CONTINUE_TO_BACKUP=0
                 fi
             fi
 
@@ -1043,6 +1100,19 @@ ghettoVCB() {
         fi
     done
     unset IFS
+
+    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
+        logger "debug" "VM Startup Order: ${VM_STARTUP_ORDER}\n"
+        IFS=","
+        for VM_NAME in ${VM_STARTUP_ORDER}; do
+            VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+            powerOn "${VM_NAME}" "${VM_ID}"
+            if [[ ${POWER_ON_EC} -eq 1 ]]; then
+                logger "info" "Unable to detect fully powered on VM ${VM_NAME}\n"
+            fi
+        done
+        unset IFS
+    fi
 
     if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] && [[ ${UNMOUNT_NFS} -eq 1 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "Sleeping for 30seconds before unmounting NFS volume"
