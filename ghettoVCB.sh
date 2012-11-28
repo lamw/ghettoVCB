@@ -96,6 +96,13 @@ EMAIL_TO=auroa@primp-industries.com
 VM_SHUTDOWN_ORDER=
 VM_STARTUP_ORDER=
 
+# Path to another location that should have backups rotated,
+# this is useful when your backups go to a temporary location
+# then are rsync'd to a final destination.  You can specify the final
+# destination as the ADDITIONAL_ROTATION_PATH which will be rotated after
+# all VMs have been restarted
+ADDITIONAL_ROTATION_PATH=
+
 ############################
 ######### DEBUG ############
 ############################ 
@@ -1160,6 +1167,17 @@ ghettoVCB() {
             fi  
         fi
     done
+    if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
+        for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
+            BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
+            # Do indexed rotation if naming convention is set for it
+            if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
+                indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
+            else
+                checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+            fi
+        done
+    fi
     unset IFS
 
     if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
