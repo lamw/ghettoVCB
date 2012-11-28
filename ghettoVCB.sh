@@ -118,6 +118,8 @@ VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
+# If set to "0", VMs will be rotated via an index, beginning at 0, ending at
+# VM_BACKUP_ROTATION_COUNT-1
 VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 
 
@@ -479,6 +481,60 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
     logger "info" ""
+}
+
+indexedRotate() {
+    local BACKUP_DIR_PATH=$1
+    local VM_TO_SEARCH_FOR=$2
+
+    #default rotation if variable is not defined
+    if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
+        VM_BACKUP_ROTATION_COUNT=1
+    fi
+
+    #LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]*")
+    i=${VM_BACKUP_ROTATION_COUNT}
+    while [[ $i -ge 0 ]]; do
+        if [[ -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ]]; then
+            if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
+                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz
+                if [[ $? -eq 0 ]]; then
+                    logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
+                else
+                    logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
+                fi
+            else
+                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
+                if [[ $? -eq 0 ]]; then
+                    logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
+                else
+                    logger "info" "Failure moving ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
+                fi
+            fi
+        fi
+        if [[ -d ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ]]; then
+            if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
+                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+                if [[ $? -eq 0 ]]; then
+                    logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
+                else
+                    logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
+                fi
+            else
+                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
+                if [[ $? -eq 0 ]]; then
+                    logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
+                else
+                    logger "info" "Failure moving ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
+                fi
+                if [[ $i -eq 0 ]]; then
+                    mkdir ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+                fi
+            fi
+        fi
+
+        i=$((i-1))
+    done
 }
 
 checkVMBackupRotation() {
@@ -843,6 +899,11 @@ ghettoVCB() {
 
             # Rsync relative path variable if needed
             RSYNC_LINK_DIR="./${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
+
+            # Do indexed rotation if naming convention is set for it
+            if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
+                indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
+            fi
 
             mkdir -p "${VM_BACKUP_DIR}"
 
