@@ -1169,7 +1169,7 @@ ghettoVCB() {
     done
     if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
         for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
-            BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
+            BACKUP_DIR="${ADDITIONAL_ROTATION_PATH}/${VM_NAME}"
             # Do indexed rotation if naming convention is set for it
             if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
                 indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
