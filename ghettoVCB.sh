@@ -182,27 +182,11 @@ logger() {
     fi
 }
 
-sanityCheck() {
+sanityCheckArgs() {
     NUM_OF_ARGS=$1
-
-    # refuse to run with an unsafe workdir
-    if [[ "${WORKDIR}" == "/" ]]; then
-        echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
-        exit 1
-    fi
-
-    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
-        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
-    fi
 
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
-
-    #if no logfile then provide default logfile in /tmp
-    if [[ -z "${LOG_OUTPUT}" ]] ; then
-        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
-        echo "Logging output to \"${LOG_OUTPUT}\" ..."
-    fi
 
     touch "${LOG_OUTPUT}"
     # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
@@ -232,6 +216,31 @@ sanityCheck() {
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
         printUsage
     fi
+}
+
+sanityCheck() {
+    # refuse to run with an unsafe workdir
+    if [[ "${WORKDIR}" == "/" ]]; then
+        echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
+        exit 1
+    fi
+
+    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
+        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
+    fi
+
+    # always log to STDOUT, use "> /dev/null" to ignore output
+    LOG_TO_STDOUT=1
+
+    #if no logfile then provide default logfile in /tmp
+    if [[ -z "${LOG_OUTPUT}" ]] ; then
+        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
+        echo "Logging output to \"${LOG_OUTPUT}\" ..."
+    fi
+
+    touch "${LOG_OUTPUT}"
+    # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
+    REDIRECT=${LOG_OUTPUT}
 
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
         VMWARE_CMD=/usr/bin/vmware-vim-cmd
@@ -1207,6 +1216,8 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     esac
 done
 
+sanityCheckArgs $#
+
 WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
 EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
@@ -1216,15 +1227,13 @@ EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 #expand VM_FILE
 [[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
 
-
 if mkdir "${WORKDIR}"; then
-
     # create VM_FILE if we're backing up everything/specified a vm on the command line
     [[ $BACKUP_ALL_VMS -eq 1 ]] && touch ${VM_FILE}
     [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
 
     # performs a check on the number of commandline arguments + verifies $2 is a valid file
-    sanityCheck $#
+    sanityCheck
 
     GHETTOVCB_PID=$$
     echo $GHETTOVCB_PID > "${WORKDIR}/pid"
