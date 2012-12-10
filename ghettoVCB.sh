@@ -188,7 +188,6 @@ sanityCheckArgs() {
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
 
-    touch "${LOG_OUTPUT}"
     # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
     REDIRECT=${LOG_OUTPUT}
 
