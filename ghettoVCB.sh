@@ -576,7 +576,7 @@ checkVMBackupRotation() {
                 NFS_IO_HACK_STATUS=0
                 NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"       
 
-                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 -a "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
+                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
                     sleep 1
                     NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
                     touch "${NFS_IO_HACK_FILECHECK}"
