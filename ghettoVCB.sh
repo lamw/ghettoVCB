@@ -295,6 +295,13 @@ sanityCheck() {
     echo "ERROR: This script needs to be executed by \"root\"!"
         exit 1
     fi
+
+    #ensure input file exists
+    if [ ! -f "${CONFIG_FILE}" ]; then
+        logger "ERROR: \"${CONFIG_FILE}\" input file does not exists\n"
+        echo -e "ERROR: \"${CONFIG_FILE}\" input file does not exists\n"
+        exit 1
+    fi
 }
 
 startTimer() {
