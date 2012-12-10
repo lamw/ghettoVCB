@@ -67,14 +67,14 @@ NFS_MOUNT=/upload
 NFS_LOCAL_NAME=backup
 
 # Name of backup directory for VMs residing on the NFS volume
-NFS_VM_BACKUP_DIR=mybackups 
+NFS_VM_BACKUP_DIR=mybackups
 
 
 ############################
 ######### EMAIL ############
-############################ 
+############################
 
-# Email log 1=yes, 0=no 
+# Email log 1=yes, 0=no
 EMAIL_LOG=0
 
 # Email Delay Interval from NC (netcat) - default 1
@@ -105,9 +105,9 @@ ADDITIONAL_ROTATION_PATH=
 
 ############################
 ######### DEBUG ############
-############################ 
+############################
 
-# Do not remove workdir on exit: 1=yes, 0=no 
+# Do not remove workdir on exit: 1=yes, 0=no
 WORKDIR_DEBUG=0
 
 ########################## DO NOT MODIFY PAST THIS LINE ##########################
@@ -210,7 +210,7 @@ sanityCheck() {
 
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
-    
+
     #if no logfile then provide default logfile in /tmp
     if [[ -z "${LOG_OUTPUT}" ]] ; then
         LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
@@ -266,23 +266,27 @@ sanityCheck() {
 		4.0.0|4.1.0)	VER=4; break;;
 		3.5.0|3i)		VER=3; break;;
 		*)				echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
-		esac
+	esac
 
-	NEW_VIMCMD_SNAPSHOT="no"
-	${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
-	if [ $? -eq 0 ]; then
-		NEW_VIMCMD_SNAPSHOT="yes"
-	fi
+    NEW_VIMCMD_SNAPSHOT="no"
+    ${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
+    [[ $? -eq 0 ]] && NEW_VIMCMD_SNAPSHOT="yes"
 
-	if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
-		if [ -f /usr/bin/nc ]; then
-			NC_BIN=/usr/bin/nc
-		elif [ -f /bin/nc ]; then 
-			NC_BIN=/bin/nc
-		fi
-        else 
-		EMAIL_LOG=0
-	fi
+    if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
+        if [[ -f /usr/bin/nc ]] ; then
+            NC_BIN=/usr/bin/nc
+        elif [[ -f /bin/nc ]] ; then
+            NC_BIN=/bin/nc
+        fi
+    else
+        EMAIL_LOG=0
+    fi
+
+    if [[ ! $(whoami) == "root" ]] ; then
+        logger "info" "This script needs to be executed by \"root\"!"
+    echo "ERROR: This script needs to be executed by \"root\"!"
+        exit 1
+    fi
 }
 
 startTimer() {
@@ -339,7 +343,7 @@ useDefaultConfigurations() {
 
 reConfigureGhettoVCBConfiguration() {
     GLOBAL_CONF=$1
-    
+
     if [[ -f "${GLOBAL_CONF}" ]]; then
         source "${GLOBAL_CONF}"
     else
@@ -379,7 +383,7 @@ findVMDK() {
         if [[ "${VMDK_FILE}" == "${VMDK_TO_SEARCH_FOR}" ]] ; then
             logger "debug" "findVMDK() - Found VMDK! - \"${VMDK_TO_SEARCH_FOR}\" to backup"
            isVMDKFound=1
-        fi  
+        fi
     done
     IFS="${OLD_IFS2}"
     #fi
@@ -574,21 +578,21 @@ checkVMBackupRotation() {
             if [[ $? -ne 0 ]] ; then
                 NFS_IO_HACK_COUNTER=0
                 NFS_IO_HACK_STATUS=0
-                NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"       
+                NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
 
                 while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
                     sleep 1
                     NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
                     touch "${NFS_IO_HACK_FILECHECK}"
-                
+
                     [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
                 done
 
                 rm -rf "${NFS_IO_HACK_FILECHECK}"
 
-                if [[ "${NFS_IO_HACK_STATUS}"  -eq 1 ]] ; then
+                if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
                     logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds to work around NFS I/O error"
-                else 
+                else
                     logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds but failed work around for NFS I/O error"
                 fi
             fi
@@ -788,7 +792,7 @@ ghettoVCB() {
                 IGNORE_VM=1
             fi
         fi
-    
+
         VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
         #ensure default value if one is not selected or variable is null
@@ -812,7 +816,7 @@ ghettoVCB() {
         fi
 
         #ignore VM as it's in the exclusion list
-        if [[ "${IGNORE_VM}" -eq 1 ]] ; then 
+        if [[ "${IGNORE_VM}" -eq 1 ]] ; then
             logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
@@ -876,15 +880,15 @@ ghettoVCB() {
 			logger "info" "removing existing snapshots for $VM_NAME..."
 			$VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID}
 		fi
-            #nfs case and backup to root path of your NFS mount     
-            if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then 
+            #nfs case and backup to root path of your NFS mount
+            if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
                 if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
                     logger "info" "ERROR: Variable BACKUP_DIR was not set properly, please ensure all required variables for non-persistent NFS backup option has been defined"
                     exit 1
                 fi
 
-                #non-nfs (SAN,LOCAL)    
+                #non-nfs (SAN,LOCAL)
             else
                 BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
                 if [[ -z ${VM_BACKUP_VOLUME} ]]; then
@@ -928,7 +932,7 @@ ghettoVCB() {
             fi
 
             ORGINAL_VM_POWER_STATE=$(${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | tail -1)
-            CONTINUE_TO_BACKUP=1    
+            CONTINUE_TO_BACKUP=1
 
             #section that will power down a VM prior to taking a snapshot and backup and power it back on
             if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
@@ -939,7 +943,7 @@ ghettoVCB() {
                 fi
             fi
 
-            if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] ; then 
+            if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] ; then
                 logger "info" "Initiate backup for ${VM_NAME}"
                 startTimer
 
@@ -970,7 +974,7 @@ ghettoVCB() {
                     done
                 fi
 
-                if [[ ${SNAP_SUCCESS} -eq 1 ]] ; then 
+                if [[ ${SNAP_SUCCESS} -eq 1 ]] ; then
                     OLD_IFS="${IFS}"
                     IFS=":"
                     for j in ${VMDKS}; do
@@ -1029,7 +1033,7 @@ ghettoVCB() {
                                     if  [[ -z "${FORMAT_OPTION}" ]] ; then
                                         logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
                                         ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1                  
-                                    else 
+                                    else
                                         logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\""
                                         ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
                                     fi
@@ -1085,7 +1089,7 @@ ghettoVCB() {
                     logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
                     if [[ ${IS_4I} -eq 1 ]] ; then
                         busybox tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
-                    else 
+                    else
                         tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
                     fi
 
@@ -1165,7 +1169,7 @@ ghettoVCB() {
                     logger "info" "ERROR: Failed to lookup ${VM_NAME}!\n"
                     VM_FAILED=1
                 fi
-            fi  
+            fi
         fi
     done
     if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
@@ -1197,7 +1201,7 @@ ghettoVCB() {
     if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] && [[ ${UNMOUNT_NFS} -eq 1 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "Sleeping for 30seconds before unmounting NFS volume"
         sleep 30
-        ${VMWARE_CMD} hostsvc/datastore/destroy ${NFS_LOCAL_NAME}   
+        ${VMWARE_CMD} hostsvc/datastore/destroy ${NFS_LOCAL_NAME}
     fi
 }
 
@@ -1235,7 +1239,7 @@ getFinalStatus() {
 }
 
 buildHeaders() {
-    EMAIL_ADDRESS=$1    
+    EMAIL_ADDRESS=$1
 
     echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1269,7 +1273,7 @@ sendMail() {
             ORIG_IFS=${IFS}
             IFS=','
             for i in ${EMAIL_TO}; do
-                buildHeaders ${i}   
+                buildHeaders ${i}
                 "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
@@ -1310,11 +1314,11 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
         a)
             BACKUP_ALL_VMS=1
             VM_FILE='${WORKDIR}/vm-input-list'
-            ;;          
-        f)  
+            ;;
+        f)
             VM_FILE="${OPTARG}"
             ;;
-        m)  
+        m)
             VM_FILE='${WORKDIR}/vm-input-list'
             VM_ARG="${OPTARG}"
             ;;
@@ -1353,7 +1357,7 @@ EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
 EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
 EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 
-#expand VM_FILE 
+#expand VM_FILE
 [[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
 
 
@@ -1364,7 +1368,7 @@ if mkdir "${WORKDIR}"; then
     [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
 
     # performs a check on the number of commandline arguments + verifies $2 is a valid file
-    sanityCheck $# 
+    sanityCheck $#
 
     GHETTOVCB_PID=$$
     echo $GHETTOVCB_PID > "${WORKDIR}/pid"
@@ -1393,7 +1397,7 @@ if mkdir "${WORKDIR}"; then
     # practically redundant
     [[ "${WORKDIR_DEBUG}" -eq 0 ]] && rm -rf "${WORKDIR}"
     exit $EXIT
-else 
+else
     logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
     exit 1
 fi
