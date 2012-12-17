@@ -172,7 +172,6 @@ printUsage() {
         echo -e "\nDry run (no backup will take place)"
         echo -e "\t$0 -f vms_to_backup -d dryrun"
         echo
-        exit 1
 }
 
 logger() {
@@ -206,27 +205,27 @@ sanityCheckArgs() {
 
     if [[ ${NUM_OF_ARGS} -lt 1 ]] || [[ ${NUM_OF_ARGS} -gt 12 ]]; then
         logger "info" "ERROR: Incorrect number of arguments!"
-        printUsage
+        printUsage && exit 1
     fi
 
     if [[ ! -f "${VM_FILE}" ]] && [[ "${USE_VM_CONF}" -eq 0 ]] && [[ "${BACKUP_ALL_VMS}" -eq 0 ]]; then
         logger "info" "ERROR: \"${VM_FILE}\" is not valid VM input file!"
-        printUsage
+        printUsage && exit 1
     fi
 
     if [[ ! -f "${VM_EXCLUSION_FILE}" ]] && [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]]; then
         logger "info" "ERROR: \"${VM_EXCLUSION_FILE}\" is not valid VM exclusion input file!"
-        printUsage
+        printUsage && exit 1
     fi
 
     if [[ ! -d "${CONFIG_DIR}" ]] && [[ "${USE_VM_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${CONFIG_DIR}\" is not valid directory!"
-        printUsage
+        printUsage && exit 1
     fi
 
     if [[ ! -f "${GLOBAL_CONF}" ]] && [[ "${USE_GLOBAL_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
-        printUsage
+        printUsage && exit 1
     fi
 }
 
