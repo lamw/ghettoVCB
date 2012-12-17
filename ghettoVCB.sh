@@ -195,18 +195,11 @@ logger() {
 }
 
 sanityCheckArgs() {
-    NUM_OF_ARGS=$1
-
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
 
     # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
     REDIRECT=${LOG_OUTPUT}
-
-    if [[ ${NUM_OF_ARGS} -lt 1 ]] || [[ ${NUM_OF_ARGS} -gt 12 ]]; then
-        logger "info" "ERROR: Incorrect number of arguments!"
-        printUsage && exit 1
-    fi
 
     if [[ ! -f "${VM_FILE}" ]] && [[ "${USE_VM_CONF}" -eq 0 ]] && [[ "${BACKUP_ALL_VMS}" -eq 0 ]]; then
         logger "info" "ERROR: \"${VM_FILE}\" is not valid VM input file!"
@@ -1319,6 +1312,13 @@ USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
 
+# quick sanity check on the number of arguments
+if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
+    printUsage
+    LOG_TO_STDOUT=1 logger "info" "ERROR: Incorrect number of arguments!"
+    exit 1
+fi
+
 #read user input
 while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     case $ARGS in
@@ -1365,7 +1365,7 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     esac
 done
 
-sanityCheckArgs $#
+sanityCheckArgs
 
 WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
