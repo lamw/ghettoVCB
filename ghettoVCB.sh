@@ -194,10 +194,22 @@ logger() {
     fi
 }
 
-sanityCheckArgs() {
+sanityCheck() {
+    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
+        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
+    fi
+
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
 
+    set -x
+    #if no logfile then provide default logfile in /tmp
+    if [[ -z "${LOG_OUTPUT}" ]] ; then
+        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
+        echo "Logging output to \"${LOG_OUTPUT}\" ..."
+    fi
+
+    touch "${LOG_OUTPUT}"
     # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
     REDIRECT=${LOG_OUTPUT}
 
@@ -220,31 +232,6 @@ sanityCheckArgs() {
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
         printUsage && exit 1
     fi
-}
-
-sanityCheck() {
-    # refuse to run with an unsafe workdir
-    if [[ "${WORKDIR}" == "/" ]]; then
-        echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
-        exit 1
-    fi
-
-    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
-        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
-    fi
-
-    # always log to STDOUT, use "> /dev/null" to ignore output
-    LOG_TO_STDOUT=1
-
-    #if no logfile then provide default logfile in /tmp
-    if [[ -z "${LOG_OUTPUT}" ]] ; then
-        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
-        echo "Logging output to \"${LOG_OUTPUT}\" ..."
-    fi
-
-    touch "${LOG_OUTPUT}"
-    # REDIRECT is used by the "tail" trick, use REDIRECT=/dev/null to redirect vmkfstool to STDOUT only
-    REDIRECT=${LOG_OUTPUT}
 
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
         VMWARE_CMD=/usr/bin/vmware-vim-cmd
@@ -259,7 +246,7 @@ sanityCheck() {
     fi
 
 
-        ESX_VERSION=$(vmware -v | awk '{print $3}')
+    ESX_VERSION=$(vmware -v | awk '{print $3}')
 
 	case "${ESX_VERSION}" in
 		5.0.0|5.1.0)	VER=5; break;;
@@ -1365,8 +1352,6 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     esac
 done
 
-sanityCheckArgs
-
 WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
 
 EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
@@ -1376,12 +1361,25 @@ EMAIL_LOG_CONTENT=${WORKDIR}/ghettoVCB-email-$$.content
 #expand VM_FILE
 [[ -n "${VM_FILE}" ]] && VM_FILE=$(eval "echo $VM_FILE")
 
+# refuse to run with an unsafe workdir
+if [[ "${WORKDIR}" == "/" ]]; then
+    echo "ERROR: Refusing to run with unsafe workdir ${WORKDIR}"
+    exit 1
+fi
+
 if mkdir "${WORKDIR}"; then
     # create VM_FILE if we're backing up everything/specified a vm on the command line
     [[ $BACKUP_ALL_VMS -eq 1 ]] && touch ${VM_FILE}
     [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
 
-    # performs a check on the number of commandline arguments + verifies $2 is a valid file
+    if [[ "${WORKDIR_DEBUG}" -eq 1 ]] ; then
+        LOG_TO_STDOUT=1 logger "info" "Workdir: ${WORKDIR} will not! be removed on exit"
+    else
+        # remove workdir when script finishes
+        trap 'rm -rf "${WORKDIR}"' 0
+    fi
+
+    # verify that we're running in a sane environment
     sanityCheck
 
     GHETTOVCB_PID=$$
@@ -1390,14 +1388,8 @@ if mkdir "${WORKDIR}"; then
     logger "info" "============================== ghettoVCB LOG START ==============================\n"
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
-    # remove lockdir when the script finishes, or when it receives a signal
-    if [[ "${WORKDIR_DEBUG}" -eq 1 ]] ; then
-        logger "info" "Workdir: ${WORKDIR} will not! be removed on exit"
-    else
-        trap 'rm -rf "${WORKDIR}"' 0    # remove workdir when script finishes
-    fi
-
-    trap "exit 2" 1 2 3 13 15       # terminate script when receiving signal
+    # terminate script and remove workdir when a signal is received
+    trap 'rm -rf "${WORKDIR}" ; exit 2' 1 2 3 13 15
 
     ghettoVCB ${VM_FILE}
 
