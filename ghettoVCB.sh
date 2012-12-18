@@ -5,7 +5,7 @@
 ##################################################################
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
-VM_BACKUP_VOLUME=/vmfs/volumes/backups
+VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
 
 # Format output of VMDK backup
 # zeroedthick
@@ -37,10 +37,6 @@ POWER_DOWN_TIMEOUT=5
 # enable compression with gzip+tar 1=on, 0=off
 ENABLE_COMPRESSION=0
 
-############################
-####### NEW PARAMS #########
-############################
-
 # Include VMs memory when taking snapshot
 VM_SNAPSHOT_MEMORY=0
 
@@ -69,10 +65,9 @@ NFS_LOCAL_NAME=backup
 # Name of backup directory for VMs residing on the NFS volume
 NFS_VM_BACKUP_DIR=mybackups
 
-
-############################
-######### EMAIL ############
-############################
+##########################################################
+# EMAIL CONFIGURATIONS
+#
 
 # Email log 1=yes, 0=no
 EMAIL_LOG=0
@@ -96,6 +91,7 @@ EMAIL_TO=auroa@primp-industries.com
 VM_SHUTDOWN_ORDER=
 VM_STARTUP_ORDER=
 
+# DO NOT USE - UNTESTED CODE
 # Path to another location that should have backups rotated,
 # this is useful when your backups go to a temporary location
 # then are rsync'd to a final destination.  You can specify the final
@@ -120,8 +116,8 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2011_11_19
-VERSION=1
+LAST_MODIFIED_DATE=2012_12_17
+VERSION=0
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
@@ -133,7 +129,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+ and 5.0"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+ and 5.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -195,6 +191,14 @@ logger() {
 }
 
 sanityCheck() {
+    # ensure root user is running the script
+    if [ ! $(env | grep -e "^USER=" | awk -F = '{print $2}') == "root" ]; then
+        logger "info" "This script needs to be executed by \"root\"!"
+        echo "ERROR: This script needs to be executed by \"root\"!"
+        exit 1
+    fi
+
+    # use of global ghettoVCB configuration
     if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
         reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
     fi
@@ -202,7 +206,6 @@ sanityCheck() {
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
 
-    set -x
     #if no logfile then provide default logfile in /tmp
     if [[ -z "${LOG_OUTPUT}" ]] ; then
         LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
@@ -215,22 +218,22 @@ sanityCheck() {
 
     if [[ ! -f "${VM_FILE}" ]] && [[ "${USE_VM_CONF}" -eq 0 ]] && [[ "${BACKUP_ALL_VMS}" -eq 0 ]]; then
         logger "info" "ERROR: \"${VM_FILE}\" is not valid VM input file!"
-        printUsage && exit 1
+        printUsage
     fi
 
     if [[ ! -f "${VM_EXCLUSION_FILE}" ]] && [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]]; then
         logger "info" "ERROR: \"${VM_EXCLUSION_FILE}\" is not valid VM exclusion input file!"
-        printUsage && exit 1
+        printUsage
     fi
 
     if [[ ! -d "${CONFIG_DIR}" ]] && [[ "${USE_VM_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${CONFIG_DIR}\" is not valid directory!"
-        printUsage && exit 1
+        printUsage
     fi
 
     if [[ ! -f "${GLOBAL_CONF}" ]] && [[ "${USE_GLOBAL_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
-        printUsage && exit 1
+        printUsage
     fi
 
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
@@ -245,15 +248,14 @@ sanityCheck() {
         exit 1
     fi
 
-
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
-	case "${ESX_VERSION}" in
-		5.0.0|5.1.0)	VER=5; break;;
-		4.0.0|4.1.0)	VER=4; break;;
-		3.5.0|3i)		VER=3; break;;
-		*)				echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
-	esac
+    case "${ESX_VERSION}" in
+        5.0.0|5.1.0)    VER=5; break;;
+        4.0.0|4.1.0)    VER=4; break;;
+        3.5.0|3i)       VER=3; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
+    esac
 
     NEW_VIMCMD_SNAPSHOT="no"
     ${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
@@ -269,17 +271,13 @@ sanityCheck() {
         EMAIL_LOG=0
     fi
 
-    if [[ ! $(whoami) == "root" ]] ; then
-        logger "info" "This script needs to be executed by \"root\"!"
-    echo "ERROR: This script needs to be executed by \"root\"!"
-        exit 1
-    fi
-
-    #ensure input file exists
-    if [ ! -f "${CONFIG_FILE}" ]; then
-        logger "ERROR: \"${CONFIG_FILE}\" input file does not exists\n"
-        echo -e "ERROR: \"${CONFIG_FILE}\" input file does not exists\n"
-        exit 1
+    # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
+    if [[ "${VMDK_DISK_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 ]]; then
+        esxcli system module list | grep multiextent > /dev/null 2>&1
+	if [ $? -eq 1 ]; then
+            logger "info" "multiextent VMkernel module is not loaded & is required for 2gbsparse, enabling ..."
+            esxcli system module load -m multiextent
+        fi
     fi
 }
 
@@ -316,6 +314,8 @@ captureDefaultConfigurations() {
     DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
     DEFAULT_EMAIL_LOG="${EMAIL_LOG}"
     DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
+    DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
+    DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
 }
 
 useDefaultConfigurations() {
@@ -333,6 +333,8 @@ useDefaultConfigurations() {
     VMDK_FILES_TO_BACKUP="all"
     EMAIL_LOG=0
     WORKDIR_DEBUG=0
+    VM_SHUTDOWN_ORDER=
+    VM_STARTUP_ORDER=
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -477,6 +479,8 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_SNAPSHOT_MEMORY = ${VM_SNAPSHOT_MEMORY}"
     logger "info" "CONFIG - VM_SNAPSHOT_QUIESCE = ${VM_SNAPSHOT_QUIESCE}"
     logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
+    logger "info" "CONFIG - VM_SHUTDOWN_ORDER = ${VM_SHUTDOWN_ORDER}"
+    logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
@@ -763,7 +767,7 @@ ghettoVCB() {
     ORIG_IFS=${IFS}
     IFS='
 '
-    if [[ ${#VM_SHUTDOWN_ORDER} -gt 0 ]]; then
+    if [[ ${#VM_SHUTDOWN_ORDER} -gt 0 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "VM Shutdown Order: ${VM_SHUTDOWN_ORDER}\n"
         IFS2="${IFS}"
         IFS=","
@@ -778,10 +782,11 @@ ghettoVCB() {
 
         IFS="${IFS2}"
     fi
+
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
-            grep -E "${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
+            grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
             fi
@@ -868,12 +873,11 @@ ghettoVCB() {
             fi
             logger "dryrun" "###############################################\n"
 
-            #checks to see if the VM has any snapshots to start with
-        elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-	        if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-			logger "info" "removing existing snapshots for $VM_NAME..."
-			$VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID}
-		fi
+        #checks to see if the VM has any snapshots to start with
+        elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+            logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+	    VM_FAILED=1
+	elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
             #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
@@ -1166,17 +1170,19 @@ ghettoVCB() {
             fi
         fi
     done
-    if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
-        for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
-            BACKUP_DIR="${ADDITIONAL_ROTATION_PATH}/${VM_NAME}"
-            # Do indexed rotation if naming convention is set for it
-            if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
-                indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
-            else
-                checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
-            fi
-        done
-    fi
+    # UNTESTED CODE
+    # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
+    #if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
+    #    for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
+    #        BACKUP_DIR="${ADDITIONAL_ROTATION_PATH}/${VM_NAME}"
+    #        # Do indexed rotation if naming convention is set for it
+    #        if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
+    #            indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
+    #        else
+    #            checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+    #        fi
+    #    done
+    #fi
     unset IFS
 
     if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
@@ -1242,6 +1248,9 @@ buildHeaders() {
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Subject: ghettoVCB - ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Date: $( date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Message-Id: <$( date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
 
     echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
     echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
@@ -1347,7 +1356,6 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         *)
             printUsage
-            exit 1
             ;;
     esac
 done
