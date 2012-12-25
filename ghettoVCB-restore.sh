@@ -5,14 +5,14 @@
 
 ###### DO NOT EDIT PASS THIS LINE ######
 
-LAST_MODIFIED_DATE=2011_11_19
-VERSION=1
+LAST_MODIFIED_DATE=2012_12_24
+VERSION=0
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 printUsage() {
     echo "###############################################################################"
     echo "#"
-    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x+ and 5.0"
+    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x and 5.x"
     echo "# Author: William Lam"
     echo "# http://www.virtuallyghetto.com/"
     echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -52,6 +52,13 @@ logger() {
 sanityCheck() {
     NUM_OF_ARGS=$1
 
+    # ensure root user is running the script
+    if [ ! $(env | grep -e "^USER=" | awk -F = '{print $2}') == "root" ]; then
+        logger "info" "This script needs to be executed by \"root\"!"
+        echo "ERROR: This script needs to be executed by \"root\"!"
+        exit 1
+    fi
+
     if [[ ${NUM_OF_ARGS} -ne 2 ]] && [[ ${NUM_OF_ARGS} -ne 4 ]] && [[ ${NUM_OF_ARGS} -ne 6 ]]; then
         printUsage
     fi
@@ -84,25 +91,13 @@ sanityCheck() {
     fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
-    if [ "${ESX_VERSION}" == "5.0.0" ]; then
-        VER=5
-    elif [[ "${ESX_VERSION}" == "4.0.0" ]] || [[ "${ESX_VERSION}" == "4.1.0" ]]; then
-        VER=4
-    else
-        ESX_VERSION=$(vmware -v | awk '{print $4}')
-        if [[ "${ESX_VERSION}" == "3.5.0" ]] || [[ "${ESX_VERSION}" == "3i" ]]; then
-            VER=3
-        else
-            echo "You're not running ESX(i) 3.5, 4.x, 5.x!"
-            exit 1
-        fi
-    fi
 
-    if [ ! "`whoami`" == "root" ]; then
-        logger "ERROR: This script needs to be executed by \"root\"!"
-        echo "ERROR: This script needs to be executed by \"root\"!"
-        exit 1
-    fi
+    case "${ESX_VERSION}" in
+        5.0.0|5.1.0)    VER=5; break;;
+        4.0.0|4.1.0)    VER=4; break;;
+        3.5.0|3i)       VER=3; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
+    esac
 
     #ensure input file exists
     if [ ! -f "${CONFIG_FILE}" ]; then
