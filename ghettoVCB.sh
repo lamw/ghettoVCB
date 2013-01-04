@@ -1266,12 +1266,12 @@ buildHeaders() {
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "Subject: ghettoVCB - ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Subject: ghettoVCB - $(hostname -s) ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Date: $( date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Message-Id: <$( date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
 
-    echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
+    echo -en "\r\n" >> "${EMAIL_LOG_OUTPUT}"
     echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
 
     cat "${EMAIL_LOG_HEADER}" > "${EMAIL_LOG_CONTENT}"
