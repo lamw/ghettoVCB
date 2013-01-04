@@ -43,6 +43,9 @@ VM_SNAPSHOT_MEMORY=0
 # Quiesce VM when taking snapshot (requires VMware Tools to be installed)
 VM_SNAPSHOT_QUIESCE=0
 
+# Allow VMs with snapshots to be backed up, this WILL CONSOLIDATE EXISTING SNAPSHOTS!
+ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP=1
+
 ##########################################################
 # NON-PERSISTENT NFS-BACKUP ONLY
 # 
@@ -311,6 +314,7 @@ captureDefaultConfigurations() {
     DEFAULT_ENABLE_COMPRESSION="${ENABLE_COMPRESSION}"
     DEFAULT_VM_SNAPSHOT_MEMORY="${VM_SNAPSHOT_MEMORY}"
     DEFAULT_VM_SNAPSHOT_QUIESCE="${VM_SNAPSHOT_QUIESCE}"
+    DEFAULT_ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP="${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP}"
     DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
     DEFAULT_EMAIL_LOG="${EMAIL_LOG}"
     DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
@@ -330,6 +334,7 @@ useDefaultConfigurations() {
     ENABLE_COMPRESSION="${DEFAULT_ENABLE_COMPRESSION}"
     VM_SNAPSHOT_MEMORY="${DEFAULT_VM_SNAPSHOT_MEMORY}"
     VM_SNAPSHOT_QUIESCE="${DEFAULT_VM_SNAPSHOT_QUIESCE}"
+    ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP="${DEFAULT_ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP}"
     VMDK_FILES_TO_BACKUP="all"
     EMAIL_LOG=0
     WORKDIR_DEBUG=0
@@ -478,6 +483,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - BACKUP_LOG_OUTPUT = ${LOG_OUTPUT}"
     logger "info" "CONFIG - VM_SNAPSHOT_MEMORY = ${VM_SNAPSHOT_MEMORY}"
     logger "info" "CONFIG - VM_SNAPSHOT_QUIESCE = ${VM_SNAPSHOT_QUIESCE}"
+    logger "info" "CONFIG - ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP = ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP}"
     logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
     logger "info" "CONFIG - VM_SHUTDOWN_ORDER = ${VM_SHUTDOWN_ORDER}"
     logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
@@ -864,8 +870,12 @@ ghettoVCB() {
 
             ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1;
             if [[ $? -eq 0 ]]; then
-                logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
-                logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
+                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
+                    logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
+                    logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
+                else
+                    logger "dryrun" "Snapshots found for this VM, ALL EXISTING SNAPSHOTS WILL BE CONSOLIDATED PRIOR TO BACKUP!"
+                fi
             fi
 
             if [[ ${TOTAL_VM_SIZE} -eq 0 ]] ; then
@@ -874,11 +884,20 @@ ghettoVCB() {
             logger "dryrun" "###############################################\n"
 
         #checks to see if the VM has any snapshots to start with
-        elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-            logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
-	    VM_FAILED=1
+        #elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+        #    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+	#    VM_FAILED=1
 	elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-            #nfs case and backup to root path of your NFS mount
+            if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ];then
+                    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+                    VM_FAILED=1
+                else
+                    logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
+                    $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
+                fi
+            fi
+    	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
                 if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
