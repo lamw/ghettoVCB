@@ -150,7 +150,7 @@ printUsage() {
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
-        echo "   -w     ghettoVCB work directory (default: ${WORKDIR})"
+        echo "   -w     ghettoVCB work directory (default: /tmp/ghettoVCB.work)"
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
