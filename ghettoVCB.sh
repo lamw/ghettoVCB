@@ -261,7 +261,7 @@ sanityCheck() {
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
-    ${VMWARE_CMD} vmsvc/snapshot.remove | grep "snapshotId" > /dev/null 2>&1
+    ${VMWARE_CMD} vmsvc/snapshot.remove 2>&1 | grep -q "snapshotId"
     [[ $? -eq 0 ]] && NEW_VIMCMD_SNAPSHOT="yes"
 
     if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
@@ -392,7 +392,7 @@ findVMDK() {
 
 getVMDKs() {
     #get all VMDKs listed in .vmx file
-    VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
+    VMDKS_FOUND=$(grep -iE '(^scsi|^ide)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
 
     TMP_IFS=${IFS}
     IFS=${ORIG_IFS}
@@ -400,18 +400,18 @@ getVMDKs() {
     for DISK in ${VMDKS_FOUND}; do
         #extract the SCSI ID and use it to check for valid vmdk disk
         SCSI_ID=$(echo ${DISK%%.*})
-        grep -i "${SCSI_ID}.present" "${VMX_PATH}" | grep -i "true" > /dev/null 2>&1
+        grep -i "^${SCSI_ID}.present" "${VMX_PATH}" | grep -i "true" > /dev/null 2>&1
 
         #if valid, then we use the vmdk file
         if [[ $? -eq 0 ]]; then
             #verify disk is not independent
-            grep -i "${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1 
+            grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1 
             if [[ $? -eq 1 ]]; then
-                grep -i "${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
+                grep -i "^${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
 
                 #if we find the device type is of scsi-disk, then proceed
                 if [[ $? -eq 0 ]]; then
-                    DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+                    DISK=$(grep -i "^${SCSI_ID}.fileName" "${VMX_PATH}" | awk -F "\"" '{print $2}')
                     echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
 
                     if [[ $? -eq 0 ]]; then
@@ -427,10 +427,10 @@ getVMDKs() {
                     #if the deviceType is NULL for IDE which it is, thanks for the inconsistency VMware
                     #we'll do one more level of verification by checking to see if an ext. of .vmdk exists
                     #since we can not rely on the deviceType showing "ide-hardDisk"
-                    grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | grep -i ".vmdk" > /dev/null 2>&1
+                    grep -i "^${SCSI_ID}.fileName" "${VMX_PATH}" | grep -i ".vmdk" > /dev/null 2>&1
 
                     if [[ $? -eq 0 ]]; then
-                        DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+                        DISK=$(grep -i "^${SCSI_ID}.fileName" "${VMX_PATH}" | awk -F "\"" '{print $2}')
                         echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
                         if [[ $? -eq 0 ]]; then
                             DISK_SIZE_IN_SECTORS=$(cat "${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
@@ -445,7 +445,7 @@ getVMDKs() {
 
             else
                 #independent disks are not affected by snapshots, hence they can not be backed up
-                DISK=$(grep -i ${SCSI_ID}.fileName "${VMX_PATH}" | awk -F "\"" '{print $2}')
+                DISK=$(grep -i "^${SCSI_ID}.fileName" "${VMX_PATH}" | awk -F "\"" '{print $2}')
                 echo "${DISK}" | grep "\/vmfs\/volumes" > /dev/null 2>&1
                 if [[ $? -eq 0 ]]; then
                     DISK_SIZE_IN_SECTORS=$(cat "${DISK}" | grep "VMFS" | grep ".vmdk" | awk '{print $2}')
@@ -764,10 +764,10 @@ ghettoVCB() {
     fi
 
     #dump out all virtual machines allowing for spaces now
-    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' | sed '1,1d' > ${WORKDIR}/vms_list
+    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' > ${WORKDIR}/vms_list
 
     if [[ "${BACKUP_ALL_VMS}" -eq 1 ]] ; then
-        ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | awk -F'   ' '{print ""$2""}' | sed '1,1d' | sed '/^$/d' > "${VM_INPUT}"
+        ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print ""$2""}' | sed '/^$/d' > "${VM_INPUT}"
     fi
 
     ORIG_IFS=${IFS}
