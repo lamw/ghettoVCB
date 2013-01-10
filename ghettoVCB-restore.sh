@@ -163,7 +163,7 @@ ghettoVCBrestore() {
             VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VM_TO_RESTORE}/${VM_VMX}" | grep -i fileName | awk -F " " '{print $1}')
             VM_DISPLAY_NAME=$(grep -i "displayName" "${VM_TO_RESTORE}/${VM_VMX}" | awk -F '=' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
             VM_ORIG_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
-            VM_FOLDER_NAME=$(echo "${VM_ORIG_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-1]*//g')
+            VM_FOLDER_NAME=$(echo "${VM_ORIG_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-1].*//g')
 
             #figure out the VMDK rename, esepcially important if original backup had VMDKs spread across multiple datastores
             #restoration will not support that since I can't assume the original system will be availabl with same ds/etc.
@@ -236,7 +236,8 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "ERROR: Unable to verify datastore locateion: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
             #validates that all 4 required variables are defined before continuing 
 
-        elif [[ -z "${VM_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_FOLDER_NAME}" ]]; then			     	     logger "ERROR: Unable to define all required variables: VM_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
+        elif [[ -z "${VM_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_FOLDER_NAME}" ]]; then			     	    
+            logger "ERROR: Unable to define all required variables: VM_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
             #validates that a directory with the same VM does not already exists
 
         elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_FOLDER_NAME}" ]; then
