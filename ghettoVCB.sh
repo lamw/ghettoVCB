@@ -119,7 +119,7 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2012_12_17
+LAST_MODIFIED_DATE=2013_01_11
 VERSION=0
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -273,6 +273,9 @@ sanityCheck() {
     else
         EMAIL_LOG=0
     fi
+
+    TAR="tar"
+    [[ ! -f /bin/tar ]] && TAR="busybox tar"
 
     # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
     if [[ "${VMDK_DISK_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 ]]; then
@@ -1104,11 +1107,7 @@ ghettoVCB() {
                     COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
 
                     logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
-                    if [[ ${IS_4I} -eq 1 ]] ; then
-                        busybox tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
-                    else
-                        tar -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
-                    fi
+                    ${TAR} -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
 
                     # verify compression
                     if [[ $? -eq 0 ]] && [[ -f "${COMPRESSED_ARCHIVE_FILE}" ]]; then
@@ -1318,10 +1317,6 @@ sendMail() {
 # Start of Script  #
 #                  #
 ####################
-
-IS_4I=0
-
-[[ ! -f /bin/bash ]] && IS_4I=1
 
 USE_VM_CONF=0
 USE_GLOBAL_CONF=0

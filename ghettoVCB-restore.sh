@@ -5,7 +5,7 @@
 
 ###### DO NOT EDIT PASS THIS LINE ######
 
-LAST_MODIFIED_DATE=2012_12_24
+LAST_MODIFIED_DATE=2013_01_11
 VERSION=0
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
@@ -98,6 +98,9 @@ sanityCheck() {
         3.5.0|3i)       VER=3; break;;
         *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
     esac
+
+    TAR="tar"
+    [[ ! -f /bin/tar ]] && TAR="busybox tar"
 
     #ensure input file exists
     if [ ! -f "${CONFIG_FILE}" ]; then
@@ -357,12 +360,6 @@ VMDK_LIST_TO_MODIFY=''
 # Start of Script  #
 #                  #
 ####################
-
-IS_4I=0
-
-if [ ! -f /bin/bash ]; then
-    IS_4I=1
-fi
 
 #read user input
 while getopts ":c:l:d:" ARGS; do
