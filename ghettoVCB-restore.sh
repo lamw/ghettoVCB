@@ -145,6 +145,7 @@ ghettoVCBrestore() {
         VM_TO_RESTORE=$(echo "${LINE}" | awk -F ';' '{print $1}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
         DATASTORE_TO_RESTORE_TO=$(echo "${LINE}" | awk -F ';' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
         RESTORE_DISK_FORMAT=$(echo "${LINE}" | awk -F ';' '{print $3}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+        RESTORE_VM_NAME=$(echo "${LINE}" | awk -F ';' '{print $4}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
 
         #figure the disk format to use
         if [ "${RESTORE_DISK_FORMAT}" -eq 1 ]; then
@@ -161,37 +162,48 @@ ghettoVCBrestore() {
         #supports DIR or .TGZ from ghettoVCB.sh ONLY!
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
-            VM_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
+            VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
             VM_VMDK_DESCRS=$(ls "${VM_TO_RESTORE}" | grep ".vmdk" | grep -v "\-flat.vmdk")
-            VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VM_TO_RESTORE}/${VM_VMX}" | grep -i fileName | awk -F " " '{print $1}')
-            VM_DISPLAY_NAME=$(grep -i "displayName" "${VM_TO_RESTORE}/${VM_VMX}" | awk -F '=' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
-            VM_ORIG_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
-            VM_FOLDER_NAME=$(echo "${VM_ORIG_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-1].*//g')
+            VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
+            VM_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
+
+            # Default to original VM Display Name if custom name is not specified
+            if [ -z ${RESTORE_VM_NAME} ]; then
+                VM_DISPLAY_NAME=$(grep -i "displayName" "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | awk -F '=' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+                VM_ORIG_FOLDER_NAME=$(echo "${VM_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-1].*//g')
+                VM_VMX_NAME=${VM_ORIG_VMX}
+		VM_RESTORE_FOLDER_NAME=${VM_ORIG_FOLDER_NAME}
+		VM_RESTORE_VMX=${VM_ORIG_VMX}
+            else
+                VM_DISPLAY_NAME=${RESTORE_VM_NAME}
+                VM_RESTORE_FOLDER_NAME=${RESTORE_VM_NAME}
+                VM_RESTORE_VMX=${RESTORE_VM_NAME}.vmx
+            fi
 
             #figure out the VMDK rename, esepcially important if original backup had VMDKs spread across multiple datastores
             #restoration will not support that since I can't assume the original system will be availabl with same ds/etc.
             #files will be restored to single VMFS volume without disrupting original backup
 
-			NUM_OF_VMDKS=0
-			TMP_IFS=${IFS}
-                        IFS=${ORIG_IFS}
-			for VMDK in ${VMDKS_FOUND}; do
+            NUM_OF_VMDKS=0
+            TMP_IFS=${IFS}
+            IFS=${ORIG_IFS}
+            for VMDK in ${VMDKS_FOUND}; do
                 #extract the SCSI ID and use it to check for valid vmdk disk
                 SCSI_ID=$(echo ${VMDK%%.*})
-                grep -i "${SCSI_ID}.present" "${VM_TO_RESTORE}/${VM_VMX}" | grep -i "true" > /dev/null 2>&1
+                grep -i "${SCSI_ID}.present" "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i "true" > /dev/null 2>&1
                 #if valid, then we use the vmdk file
                 if [ $? -eq 0 ]; then
-                    grep -i "${SCSI_ID}.deviceType" "${VM_TO_RESTORE}/${VM_VMX}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
+                    grep -i "${SCSI_ID}.deviceType" "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
                     #if we find the device type is of scsi-disk, then proceed
                     if [ $? -eq 0 ]; then
-                        DISK=$(grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_VMX}")
+                        DISK=$(grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_ORIG_VMX}")
                     else
                         #if the deviceType is NULL for IDE which it is, thanks for the inconsistency VMware
                         #we'll do one more level of verification by checking to see if an ext. of .vmdk exists
                         #since we can not rely on the deviceType showing "ide-hardDisk"
-                        grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_VMX}" | grep -i ".vmdk" > /dev/null 2>&1
+                        grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i ".vmdk" > /dev/null 2>&1
                         if [ $? -eq 0 ]; then
-                            DISK=$(grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_VMX}")
+                            DISK=$(grep -i ${SCSI_ID}.fileName "${VM_TO_RESTORE}/${VM_ORIG_VMX}")
                         fi
                     fi
 
@@ -218,9 +230,10 @@ if [ ! "${IS_TGZ}" == "1" ]; then
     if [ "${DEVEL_MODE}" == "1" ]; then
         logger "\n################ DEBUG MODE ##############"
         logger "Virtual Machine: \"${VM_DISPLAY_NAME}\""
-        logger "VM_VMX: \"${VM_VMX}\""
-        logger "VM_ORG_FOLDER: \"${VM_ORIG_FOLDER_NAME}\""
-        logger "VM_FOLDER_NAME: \"${VM_FOLDER_NAME}\""
+        logger "VM_ORIG_VMX: \"${VM_ORIG_VMX}\""
+        logger "VM_ORG_FOLDER: \"${VM_FOLDER_NAME}\""
+        logger "VM_RESTORE_VMX: \"${VM_RESTORE_VMX}\""
+        logger "VM_RESTORE_FOLDER: \"${VM_RESTORE_FOLDER_NAME}\""
         logger "VMDK_LIST_TO_MODIFY:"
         OLD_IFS="${IFS}"
         IFS=";"
@@ -239,12 +252,12 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "ERROR: Unable to verify datastore locateion: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
             #validates that all 4 required variables are defined before continuing 
 
-        elif [[ -z "${VM_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_FOLDER_NAME}" ]]; then			     	    
-            logger "ERROR: Unable to define all required variables: VM_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
+        elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then			     	    
+            logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
             #validates that a directory with the same VM does not already exists
 
-        elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_FOLDER_NAME}" ]; then
-            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!" 
+        elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}" ]; then
+            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!" 
 
         else		
             logger "################## Restoring VM: $VM_DISPLAY_NAME  #####################"
@@ -256,7 +269,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "Restoring VM from: \"${VM_TO_RESTORE}\""
             logger "Restoring VM to Datastore: \"${DATASTORE_TO_RESTORE_TO}\" using Disk Format: \"${FORMAT_STRING}\""
 
-            VM_RESTORE_DIR="${DATASTORE_TO_RESTORE_TO}/${VM_FOLDER_NAME}"
+            VM_RESTORE_DIR="${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}"
 
             #create VM folder on datastore if it doesn't already exists
             logger "Creating VM directory: \"${VM_RESTORE_DIR}\" ..."
@@ -265,9 +278,10 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             fi
 
             #copy .vmx file
-            logger "Copying \"${VM_VMX}\" file ..."
+            logger "Copying \"${VM_ORIG_VMX}\" file ..."
             if [ ! "${DEVEL_MODE}" == "2" ]; then
-                cp "${VM_TO_RESTORE}/${VM_VMX}" "${VM_RESTORE_DIR}/${VM_VMX}"
+                cp "${VM_TO_RESTORE}/${VM_ORIG_VMX}" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+                sed -i "s/displayName =.*/displayName = ${VM_DISPLAY_NAME}/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
             fi
 
             #loop through all VMDK(s) and vmkfstools copy to destination
@@ -285,9 +299,9 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                 MODIFIED_VMX_LINE=$(echo "${i}" | awk -F ',' '{print $2}')
 
                 #update restored VM to match VMDKs
-                logger "Updating VMDK entry in \"${VM_VMX}\" file ..."
+                logger "Updating VMDK entry in \"${VM_RESTORE_VMX}\" file ..."
                 if [ ! "${DEVEL_MODE}" == "2" ]; then
-                    sed -i "s#${ORIGINAL_VMX_LINE}#${MODIFIED_VMX_LINE}#g" "${VM_RESTORE_DIR}/${VM_VMX}"
+                    sed -i "s#${ORIGINAL_VMX_LINE}#${MODIFIED_VMX_LINE}#g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
                 fi
 
                 echo "${SOURCE_LINE_VMDK}" | grep "/vmfs/volumes" > /dev/null 2>&1
@@ -339,7 +353,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "Registering $VM_DISPLAY_NAME ..."
 
             if [ ! "${DEVEL_MODE}" == "2" ]; then
-                ${VMWARE_CMD} solo/registervm "${VM_RESTORE_DIR}/${VM_VMX}"
+                ${VMWARE_CMD} solo/registervm "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
             fi
 
             logger "End time: $(date)"
