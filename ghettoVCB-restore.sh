@@ -158,7 +158,6 @@ ghettoVCBrestore() {
             FORMAT_STRING=eagerzeroedthick
         fi
 
-        IS_DIR=0		
         #supports DIR or .TGZ from ghettoVCB.sh ONLY!
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
