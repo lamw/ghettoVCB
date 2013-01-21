@@ -1282,7 +1282,7 @@ sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
         #check if firewall is enabled
-        if /sbin/esxcli network firewall get | grep Enabled | grep true > /dev/null 2>&1; then
+        if /sbin/esxcli network firewall get | grep "Enabled" | grep -q "true" > /dev/null 2>&1; then
            #validate firewall has email port open for ESXi 5
            if [[ "${VER}" == "5" ]] ; then
                /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
