@@ -1281,13 +1281,16 @@ buildHeaders() {
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
-        #validate firewall has email port open for ESXi 5
-        if [[ "${VER}" == "5" ]] ; then
-            /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
-            if [[ $? -eq 1 ]] ; then
-                logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
-                logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
-            fi
+        #check if firewall is enabled
+        if /sbin/esxcli network firewall get | grep Enabled | grep true > /dev/null 2>&1; then
+           #validate firewall has email port open for ESXi 5
+           if [[ "${VER}" == "5" ]] ; then
+               /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+               if [[ $? -eq 1 ]] ; then
+                   logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
+                   logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+               fi
+           fi
         fi
 
         echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
