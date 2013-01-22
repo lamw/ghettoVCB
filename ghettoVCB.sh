@@ -261,7 +261,7 @@ sanityCheck() {
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
-    ${VMWARE_CMD} vmsvc/snapshot.remove 2>&1 | grep -q "snapshotId"
+    ${VMWARE_CMD} vmsvc/snapshot.remove 2>/dev/null | grep -q "snapshotId"
     [[ $? -eq 0 ]] && NEW_VIMCMD_SNAPSHOT="yes"
 
     if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
