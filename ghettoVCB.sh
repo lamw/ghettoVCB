@@ -261,7 +261,7 @@ sanityCheck() {
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
-    ${VMWARE_CMD} vmsvc/snapshot.remove 2>&1 | grep -q "snapshotId"
+    ${VMWARE_CMD} vmsvc/snapshot.remove 2>/dev/null | grep "snapshotId" > /dev/null 2>&1
     [[ $? -eq 0 ]] && NEW_VIMCMD_SNAPSHOT="yes"
 
     if [[ "${EMAIL_LOG}" -eq 1 ]] && [[ -f /usr/bin/nc ]] || [[ -f /bin/nc ]]; then
@@ -359,6 +359,8 @@ reConfigureBackupParam() {
     VM=$1
 
     if [[ -e "${CONFIG_DIR}/${VM}" ]]; then
+        #remove trailing slash
+        CONFIG_DIR=$(echo "${CONFIG_DIR}" | sed 's#/$##')
         logger "info" "CONFIG - USING CONFIGURATION FILE = ${CONFIG_DIR}/${VM}"
         source "${CONFIG_DIR}/${VM}"
     else
@@ -872,7 +874,7 @@ ghettoVCB() {
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
-            ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1;
+            ls "${VMX_DIR}" | grep "\-delta\.vmdk" > /dev/null 2>&1;
             if [[ $? -eq 0 ]]; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                     logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
@@ -888,13 +890,13 @@ ghettoVCB() {
             logger "dryrun" "###############################################\n"
 
         #checks to see if the VM has any snapshots to start with
-        elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+        elif ls "${VMX_DIR}" | grep "\-delta\.vmdk" > /dev/null 2>&1; then
             if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                 logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                 VM_FAILED=1
             fi
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-            if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+            if ls "${VMX_DIR}" | grep "\-delta\.vmdk" > /dev/null 2>&1; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
                     $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
@@ -1090,7 +1092,7 @@ ghettoVCB() {
 
                     #do not continue until all snapshots have been committed
                     logger "info" "Removing snapshot from ${VM_NAME} ..."
-                    while ls "${VMX_DIR}" | grep -q "\-delta\.vmdk"; do
+                    while ls "${VMX_DIR}" | grep "\-delta\.vmdk" > /dev/null 2>&1; do
                         sleep 5
                     done
                 fi
@@ -1281,13 +1283,16 @@ buildHeaders() {
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
-        #validate firewall has email port open for ESXi 5
-        if [[ "${VER}" == "5" ]] ; then
-            /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
-            if [[ $? -eq 1 ]] ; then
-                logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
-                logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
-            fi
+        #check if firewall is enabled
+        if /sbin/esxcli network firewall get | grep "Enabled" | grep "true" > /dev/null 2>&1; then
+           #validate firewall has email port open for ESXi 5
+           if [[ "${VER}" == "5" ]] ; then
+               /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+               if [[ $? -eq 1 ]] ; then
+                   logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
+                   logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+               fi
+           fi
         fi
 
         echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
