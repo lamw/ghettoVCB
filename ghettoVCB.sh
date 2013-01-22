@@ -359,6 +359,8 @@ reConfigureBackupParam() {
     VM=$1
 
     if [[ -e "${CONFIG_DIR}/${VM}" ]]; then
+        #remove trailing slash
+        CONFIG_DIR=$(echo "${CONFIG_DIR}" | sed 's#/$##')
         logger "info" "CONFIG - USING CONFIGURATION FILE = ${CONFIG_DIR}/${VM}"
         source "${CONFIG_DIR}/${VM}"
     else
