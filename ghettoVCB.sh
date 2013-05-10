@@ -823,7 +823,16 @@ ghettoVCB() {
         if [[ ! -z ${VM_ID} ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
             storageInfo "before"
         fi
-
+	
+	#check if vms has snapshot
+	if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+		VMS_WITH_SNAPSHOTS=1
+		logger "debug" "Snapshot found for ${VM_NAME}.\n"
+	else
+		VMS_WITH_SNAPSHOTS=0
+		logger "debug" "Snapshot not found for ${VM_NAME}.\n"
+        fi
+		
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
             logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
@@ -888,13 +897,11 @@ ghettoVCB() {
             logger "dryrun" "###############################################\n"
 
         #checks to see if the VM has any snapshots to start with
-        elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-            if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
+        elif [[ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]] && [[ $VMS_WITH_SNAPSHOTS -eq 1 ]]; then
                 logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                 VM_FAILED=1
-            fi
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-            if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+            if [ $VMS_WITH_SNAPSHOTS -eq 1 ]; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
                     $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
