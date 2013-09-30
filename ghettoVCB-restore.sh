@@ -93,9 +93,9 @@ sanityCheck() {
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
     case "${ESX_VERSION}" in
-        5.0.0|5.1.0)    VER=5; break;;
-        4.0.0|4.1.0)    VER=4; break;;
-        3.5.0|3i)       VER=3; break;;
+        5.0.0|5.1.0|5.5.0)    VER=5; break;;
+        4.0.0|4.1.0)          VER=4; break;;
+        3.5.0|3i)             VER=3; break;;
         *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
     esac
 
