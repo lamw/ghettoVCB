@@ -361,7 +361,8 @@ reConfigureBackupParam() {
     if [[ -e "${CONFIG_DIR}/${VM}" ]]; then
         logger "info" "CONFIG - USING CONFIGURATION FILE = ${CONFIG_DIR}/${VM}"
         source "${CONFIG_DIR}/${VM}"
-    }
+    fi
+}
 
 dumpHostInfo() {
     VERSION=$(vmware -v)
