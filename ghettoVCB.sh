@@ -357,6 +357,7 @@ reConfigureGhettoVCBConfiguration() {
 
 reConfigureBackupParam() {
     VM=$1
+    
     useDefaultConfigurations
     if [[ -e "${CONFIG_DIR}/${VM}" ]]; then
         logger "info" "CONFIG - USING CONFIGURATION FILE = ${CONFIG_DIR}/${VM}"
