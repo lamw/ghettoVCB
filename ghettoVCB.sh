@@ -59,6 +59,9 @@ UNMOUNT_NFS=0
 # IP Address of NFS Server
 NFS_SERVER=172.51.0.192
 
+# NFS Version (v3=nfs v4=nfsv41) - Only v3 is valid for 5.5
+NFS_VERSION=nfs
+
 # Path of exported folder residing on NFS Server (e.g. /some/mount/point )
 NFS_MOUNT=/upload
 
@@ -252,6 +255,7 @@ sanityCheck() {
     fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
+    ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
@@ -472,6 +476,7 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
+        logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
         logger "info" "CONFIG - NFS_MOUNT = ${NFS_MOUNT}"
     fi
     logger "info" "CONFIG - VM_BACKUP_ROTATION_COUNT = ${VM_BACKUP_ROTATION_COUNT}"
@@ -753,8 +758,12 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-            ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
-        fi
+	    if [ ${ESX_RELEASE} == "5.5.0" ]; then
+                ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
+            else
+                ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
+            fi
+	fi
     fi
 
     captureDefaultConfigurations
