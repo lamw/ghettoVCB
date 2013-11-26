@@ -122,8 +122,8 @@ VMDK_FILES_TO_BACKUP="all"
 # default 15min timeout
 SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2013_01_11
-VERSION=0
+LAST_MODIFIED_DATE=2013_26_11
+VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
