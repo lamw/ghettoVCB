@@ -1217,7 +1217,7 @@ ghettoVCB() {
     #fi
     unset IFS
 
-    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
+    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "VM Startup Order: ${VM_STARTUP_ORDER}\n"
         IFS=","
         for VM_NAME in ${VM_STARTUP_ORDER}; do
