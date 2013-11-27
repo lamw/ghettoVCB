@@ -2,7 +2,13 @@
 # Created Date: 11/17/2008
 # http://www.virtuallyghetto.com/
 # http://communities.vmware.com/docs/DOC-8760
+
 ##################################################################
+#                   User Definable Parameters
+##################################################################
+
+LAST_MODIFIED_DATE=2013_26_11
+VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -42,6 +48,9 @@ VM_SNAPSHOT_MEMORY=0
 
 # Quiesce VM when taking snapshot (requires VMware Tools to be installed)
 VM_SNAPSHOT_QUIESCE=0
+
+# default 15min timeout
+SNAPSHOT_TIMEOUT=15
 
 # Allow VMs with snapshots to be backed up, this WILL CONSOLIDATE EXISTING SNAPSHOTS!
 ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP=0
@@ -97,6 +106,9 @@ EMAIL_TO=auroa@primp-industries.com
 VM_SHUTDOWN_ORDER=
 VM_STARTUP_ORDER=
 
+# RSYNC LINK 1=yes, 0 = no
+RSYNC_LINK=0
+
 # DO NOT USE - UNTESTED CODE
 # Path to another location that should have backups rotated,
 # this is useful when your backups go to a temporary location
@@ -105,25 +117,17 @@ VM_STARTUP_ORDER=
 # all VMs have been restarted
 ADDITIONAL_ROTATION_PATH=
 
-############################
-######### DEBUG ############
-############################
-
-# Do not remove workdir on exit: 1=yes, 0=no
-WORKDIR_DEBUG=0
+##################################################################
+#                   End User Definable Parameters
+##################################################################
 
 ########################## DO NOT MODIFY PAST THIS LINE ##########################
 
-# RSYNC LINK 1=yes, 0 = no
-RSYNC_LINK=0
-
+# Do not remove workdir on exit: 1=yes, 0=no
+WORKDIR_DEBUG=0
 LOG_LEVEL="info"
 VMDK_FILES_TO_BACKUP="all"
-# default 15min timeout
-SNAPSHOT_TIMEOUT=15
 
-LAST_MODIFIED_DATE=2013_26_11
-VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 # Directory naming convention for backup rotations (please ensure there are no spaces!)
@@ -327,6 +331,7 @@ captureDefaultConfigurations() {
     DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
+    DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
 }
 
 useDefaultConfigurations() {
@@ -347,6 +352,7 @@ useDefaultConfigurations() {
     WORKDIR_DEBUG="${DEFAULT_WORKDIR_DEBUG}"
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
+    RSYNC_LINK="${RSYNC_LINK}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -496,6 +502,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VMDK_FILES_TO_BACKUP = ${VMDK_FILES_TO_BACKUP}"
     logger "info" "CONFIG - VM_SHUTDOWN_ORDER = ${VM_SHUTDOWN_ORDER}"
     logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
+    logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
