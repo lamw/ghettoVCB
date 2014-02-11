@@ -1292,6 +1292,21 @@ buildHeaders() {
     cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
 }
 
+sendMailCore () {
+    COMMANDS="" && SKIP_SLEEP=0	# init internal variables
+
+    while read LINE; do
+	COMMANDS="${COMMANDS} echo \"$LINE\";"
+	[ $SKIP_SLEEP -eq 0 ] && COMMANDS="${COMMANDS} sleep 1;"
+	[ "$LINE" == "DATA" ] && SKIP_SLEEP=1
+    done < "${EMAIL_LOG_CONTENT}"
+
+    ( eval $COMMANDS ) | "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+
+    [[ $? -eq 1 ]] && exit 1	# exit status
+    exit 0
+}
+
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
@@ -1310,7 +1325,7 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+		sendMailCore
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
                 fi
@@ -1318,7 +1333,7 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+	    sendMailCore
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
