@@ -1163,7 +1163,7 @@ ghettoVCB() {
                             SYMLINK_DST1=${RSYNC_LINK_DIR}
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        logger "debug" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\"\n"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1184,7 +1184,7 @@ ghettoVCB() {
                             SYMLINK_DST1=${RSYNC_LINK_DIR}
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        logger "debug" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\"\n"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1437,7 +1437,7 @@ if mkdir "${WORKDIR}"; then
     GHETTOVCB_PID=$$
     echo $GHETTOVCB_PID > "${WORKDIR}/pid"
 
-    logger "info" "============================== ghettoVCB LOG START ==============================\n"
+    logger "info" "============== ghettoVCB LOG START ==============\n"
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
     # terminate script and remove workdir when a signal is received
@@ -1448,7 +1448,7 @@ if mkdir "${WORKDIR}"; then
     getFinalStatus
 
     logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
-    logger "info" "============================== ghettoVCB LOG END ================================\n"
+    logger "info" "============== ghettoVCB LOG END ===============\n"
 
     sendMail
 
