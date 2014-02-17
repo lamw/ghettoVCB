@@ -1239,31 +1239,31 @@ ghettoVCB() {
 
 getFinalStatus() {
     if [[ "${LOG_TYPE}" == "dryrun" ]]; then
-        FINAL_STATUS="###### Final status: OK, only a dryrun. ######"
+        FINAL_STATUS="### OK: only a dryrun. ###"
         LOG_STATUS="OK"
         EXIT=0
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
-        FINAL_STATUS="###### Final status: All VMs backed up OK! ######"
+        FINAL_STATUS="### OK: all VMs backed up! ###"
         LOG_STATUS="OK"
         EXIT=0
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: WARNING: All VMs backed up, but some disk(s) failed! ######"
+        FINAL_STATUS="### WARNING: All VMs backed up, but some disk(s) failed! ###"
         LOG_STATUS="WARNING"
         EXIT=3
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 0 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up! ######"
+        FINAL_STATUS="### ERROR: Only some of the VMs backed up! ###"
         LOG_STATUS="ERROR"
         EXIT=4
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
+        FINAL_STATUS="### ERROR: Only some of the VMs backed up, and some disk(s) failed! ###"
         LOG_STATUS="ERROR"
         EXIT=5
     elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
+        FINAL_STATUS="### ERROR: All VMs failed! ###"
         LOG_STATUS="ERROR"
         EXIT=6
     elif [[ $VM_OK == 0 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
+        FINAL_STATUS="### ERROR: No VMs backed up! ###"
         LOG_STATUS="ERROR"
         EXIT=7
     fi
@@ -1301,6 +1301,8 @@ sendMailCore () {
 	[ "$LINE" == "DATA" ] && SKIP_SLEEP=1
     done < "${EMAIL_LOG_CONTENT}"
 
+    TIME=$(date +%F" "%H:%M:%S)
+    echo -e "${TIME} -- ${LOG_TYPE}: Sending email ..."
     ( eval $COMMANDS ) | "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 
     [[ $? -eq 1 ]] && exit 1	# exit status
