@@ -840,9 +840,24 @@ ghettoVCB() {
             storageInfo "before"
         fi
 
+	#check if VM has snapshot
+	if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+	    VM_WITH_SNAPSHOTS=1
+	    logger "debug" "Snapshot found for ${VM_NAME}.\n"
+	else
+	    VM_WITH_SNAPSHOTS=0
+	    logger "debug" "Snapshot not found for ${VM_NAME}.\n"
+	fi
+
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
             logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+
+        elif [[ $VM_WITH_SNAPSHOTS -eq 1 ]] && [[ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]]; then
+            logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+            logger "info" "ERROR: Failed to backup ${VM_NAME}!\n"
+            VM_FAILED=1
+
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
@@ -888,14 +903,8 @@ ghettoVCB() {
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
-            ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1;
-            if [[ $? -eq 0 ]]; then
-                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
-                    logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
-                else
-                    logger "dryrun" "Snapshots found for this VM, ALL EXISTING SNAPSHOTS WILL BE CONSOLIDATED PRIOR TO BACKUP!"
-                fi
+            if [ $VM_WITH_SNAPSHOTS -eq 1 ]; then
+                logger "dryrun" "Snapshots found for this VM, ALL EXISTING SNAPSHOTS WILL BE CONSOLIDATED PRIOR TO BACKUP!"
             fi
 
             if [[ ${TOTAL_VM_SIZE} -eq 0 ]] ; then
@@ -905,14 +914,9 @@ ghettoVCB() {
 
         #checks to see if the VM has any snapshots to start with
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-            if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
-                    VM_FAILED=1
-                elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
-                    $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
-                fi
+            if [[ $VM_WITH_SNAPSHOTS -eq 1 ]] && [[ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]]; then
+                logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
+                $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
             fi
     	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
