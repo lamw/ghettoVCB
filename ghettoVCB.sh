@@ -840,9 +840,24 @@ ghettoVCB() {
             storageInfo "before"
         fi
 
+	#check if VM has snapshot
+	if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+	    VM_WITH_SNAPSHOTS=1
+	    logger "debug" "Snapshot found for ${VM_NAME}.\n"
+	else
+	    VM_WITH_SNAPSHOTS=0
+	    logger "debug" "Snapshot not found for ${VM_NAME}.\n"
+	fi
+
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
             logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+
+        elif [[ $VM_WITH_SNAPSHOTS -eq 1 ]] && [[ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]]; then
+            logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+            logger "info" "ERROR: Failed to backup ${VM_NAME}!\n"
+            VM_FAILED=1
+
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
@@ -888,14 +903,8 @@ ghettoVCB() {
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
-            ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1;
-            if [[ $? -eq 0 ]]; then
-                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "dryrun" "Snapshots found for this VM, please commit all snapshots before continuing!"
-                    logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EXISTING SNAPSHOTS!"
-                else
-                    logger "dryrun" "Snapshots found for this VM, ALL EXISTING SNAPSHOTS WILL BE CONSOLIDATED PRIOR TO BACKUP!"
-                fi
+            if [ $VM_WITH_SNAPSHOTS -eq 1 ]; then
+                logger "dryrun" "Snapshots found for this VM, ALL EXISTING SNAPSHOTS WILL BE CONSOLIDATED PRIOR TO BACKUP!"
             fi
 
             if [[ ${TOTAL_VM_SIZE} -eq 0 ]] ; then
@@ -905,14 +914,9 @@ ghettoVCB() {
 
         #checks to see if the VM has any snapshots to start with
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
-            if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
-                if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
-                    VM_FAILED=1
-                elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
-                    $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
-                fi
+            if [[ $VM_WITH_SNAPSHOTS -eq 1 ]] && [[ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]]; then
+                logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
+                $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
             fi
     	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
@@ -1163,7 +1167,7 @@ ghettoVCB() {
                             SYMLINK_DST1=${RSYNC_LINK_DIR}
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        logger "debug" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\"\n"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1184,7 +1188,7 @@ ghettoVCB() {
                             SYMLINK_DST1=${RSYNC_LINK_DIR}
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        logger "debug" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\"\n"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1239,31 +1243,31 @@ ghettoVCB() {
 
 getFinalStatus() {
     if [[ "${LOG_TYPE}" == "dryrun" ]]; then
-        FINAL_STATUS="###### Final status: OK, only a dryrun. ######"
+        FINAL_STATUS="### OK: only a dryrun. ###"
         LOG_STATUS="OK"
         EXIT=0
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
-        FINAL_STATUS="###### Final status: All VMs backed up OK! ######"
+        FINAL_STATUS="### OK: all VMs backed up! ###"
         LOG_STATUS="OK"
         EXIT=0
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: WARNING: All VMs backed up, but some disk(s) failed! ######"
+        FINAL_STATUS="### WARNING: All VMs backed up, but some disk(s) failed! ###"
         LOG_STATUS="WARNING"
         EXIT=3
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 0 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up! ######"
+        FINAL_STATUS="### ERROR: Only some of the VMs backed up! ###"
         LOG_STATUS="ERROR"
         EXIT=4
     elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
+        FINAL_STATUS="### ERROR: Only some of the VMs backed up, and some disk(s) failed! ###"
         LOG_STATUS="ERROR"
         EXIT=5
     elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
+        FINAL_STATUS="### ERROR: All VMs failed! ###"
         LOG_STATUS="ERROR"
         EXIT=6
     elif [[ $VM_OK == 0 ]]; then
-        FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
+        FINAL_STATUS="### ERROR: No VMs backed up! ###"
         LOG_STATUS="ERROR"
         EXIT=7
     fi
@@ -1292,6 +1296,23 @@ buildHeaders() {
     cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
 }
 
+sendMailCore () {
+    COMMANDS="" && SKIP_SLEEP=0	# init internal variables
+
+    while read LINE; do
+	COMMANDS="${COMMANDS} echo \"$LINE\";"
+	[ $SKIP_SLEEP -eq 0 ] && COMMANDS="${COMMANDS} sleep 1;"
+	[ "$LINE" == "DATA" ] && SKIP_SLEEP=1
+    done < "${EMAIL_LOG_CONTENT}"
+
+    TIME=$(date +%F" "%H:%M:%S)
+    echo -e "${TIME} -- ${LOG_TYPE}: Sending email ..."
+    ( eval $COMMANDS ) | "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+
+    [[ $? -eq 1 ]] && exit 1	# exit status
+    exit 0
+}
+
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
@@ -1310,7 +1331,7 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+		sendMailCore
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
                 fi
@@ -1318,7 +1339,7 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+	    sendMailCore
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
@@ -1422,7 +1443,7 @@ if mkdir "${WORKDIR}"; then
     GHETTOVCB_PID=$$
     echo $GHETTOVCB_PID > "${WORKDIR}/pid"
 
-    logger "info" "============================== ghettoVCB LOG START ==============================\n"
+    logger "info" "============== ghettoVCB LOG START ==============\n"
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
     # terminate script and remove workdir when a signal is received
@@ -1433,7 +1454,7 @@ if mkdir "${WORKDIR}"; then
     getFinalStatus
 
     logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
-    logger "info" "============================== ghettoVCB LOG END ================================\n"
+    logger "info" "============== ghettoVCB LOG END ===============\n"
 
     sendMail
 
