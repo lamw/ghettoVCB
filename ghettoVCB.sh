@@ -756,6 +756,7 @@ ghettoVCB() {
     VM_OK=0
     VM_FAILED=0
     VMDK_FAILED=0
+    PROBLEM_VMS=
 
     dumpHostInfo
 
@@ -802,7 +803,7 @@ ghettoVCB() {
             powerOff "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                 logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
-                exit 1
+                PROBLEM_VMS="${PROBLEM_VMS} ${VM_NAME}"
             fi
         done
 
@@ -814,6 +815,13 @@ ghettoVCB() {
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
+                IGNORE_VM=1
+            fi
+        fi
+
+        if [[ "${IGNORE_VM}" -eq 0 ]] ; then
+            if [[ "${PROBLEM_VMS#*$VM_NAME}" == "$PROBLEM_VMS" ]] ; then
+                logger "debug" "Ignoring ${VM_NAME}\n"
                 IGNORE_VM=1
             fi
         fi
