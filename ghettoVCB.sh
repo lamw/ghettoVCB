@@ -816,12 +816,13 @@ ghettoVCB() {
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
+
             fi
         fi
 
-        if [[ "${IGNORE_VM}" -eq 0 ]] ; then
+        if [[ "${IGNORE_VM}" -eq 0 && "${PROBLEM_VMS}" -eq "" ]] ; then
             if [[ "${PROBLEM_VMS#*$VM_NAME}" == "$PROBLEM_VMS" ]] ; then
-                logger "debug" "Ignoring ${VM_NAME}\n"
+                logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
             fi
         fi
