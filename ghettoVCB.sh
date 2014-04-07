@@ -820,8 +820,8 @@ ghettoVCB() {
             fi
         fi
 
-        if [[ "${IGNORE_VM}" -eq 0 && "${PROBLEM_VMS}" -eq "" ]] ; then
-            if [[ "${PROBLEM_VMS#*$VM_NAME}" == "$PROBLEM_VMS" ]] ; then
+        if [[ "${IGNORE_VM}" -eq 0 ]] && [[ -n "${PROBLEM_VMS}" ]] ; then
+            if [[ "${PROBLEM_VMS/$VM_NAME}" != "$PROBLEM_VMS" ]] ; then
                 logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
             fi
@@ -851,7 +851,8 @@ ghettoVCB() {
 
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
-            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"
+            VM_FAILED=1
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
