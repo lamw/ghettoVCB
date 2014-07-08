@@ -20,7 +20,7 @@ printUsage() {
     echo "OPTIONS:"
     echo "   -b     Backup VM"
     echo "   -r     Restore VM"
-    echo "   -rm    Remove all backup"
+    echo "   -d    Remove all backup"
     echo
     exit 1
 }
@@ -41,21 +41,26 @@ while test $# -ne 0 ;do
 	echo "Run restore $vm"
 
 	source ghettoVCB.conf
-	DATE=
-
 	cat ghettoVCB-restore_vm_restore_configuration_template > vm_to_restore;
 	echo "\""$vm";"$PATH_TO_RESTORE";3\"" >> vm_to_restore;
 	sh ./ghettoVCB-restore.sh -c vm_to_restore -f 1;
 	echo "Restore end"
 	;;
 
-	-h)shift;
+-d)shift;
+	echo "Remove all backup of this vm"
+	vm=$1; shift;
+	source ghettoVCB.conf
+	rm -R $VM_BACKUP_VOLUME"/"$vm;
+	echo "All backup of this vm are removed"
+;;
+
+-h)shift;
 	printUsage
 	exit 1;
 	;;
 
-	*)	
-	printUsage
+*)printUsage
 	exit 1;
 	;;
 esac
