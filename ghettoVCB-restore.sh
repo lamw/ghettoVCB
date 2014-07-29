@@ -248,7 +248,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
     else
         #validates the datastore to restore is valid and available
         if [ ! -d "${DATASTORE_TO_RESTORE_TO}" ]; then
-            logger "ERROR: Unable to verify datastore locateion: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
+            logger "ERROR: Unable to verify datastore location: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
             #validates that all 4 required variables are defined before continuing 
 
         elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then			     	    
