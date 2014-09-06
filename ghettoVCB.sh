@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2013_26_11
-VERSION=2
+LAST_MODIFIED_DATE=2014_08_29 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
+VERSION=2.1                   #27.08.14 Original: VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -32,7 +32,7 @@ POWER_VM_DOWN_BEFORE_BACKUP=0
 ENABLE_HARD_POWER_OFF=0
 
 # if the above flag "ENABLE_HARD_POWER_OFF "is set to 1, then will look at this flag which is the # of iterations
-# the script will wait before executing a hard power off, this will be a multiple of 60seconds 
+# the script will wait before executing a hard power off, this will be a multiple of 60seconds
 # (e.g) = 3, which means this will wait up to 180seconds (3min) before it just powers off the VM
 ITER_TO_WAIT_SHUTDOWN=3
 
@@ -57,7 +57,7 @@ ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP=0
 
 ##########################################################
 # NON-PERSISTENT NFS-BACKUP ONLY
-# 
+#
 # ENABLE NON PERSISTENT NFS BACKUP 1=on, 0=off
 
 ENABLE_NON_PERSISTENT_NFS=0
@@ -157,7 +157,7 @@ printUsage() {
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
-        echo "   -w     ghettoVCB work directory (default: /tmp/ghettoVCB.work)"
+        echo "   -w     ghettoVCB work directory (default: ${WORKDIR_DEFAULT})"
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
@@ -195,7 +195,7 @@ logger() {
         fi
 
         if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
-            echo -ne "${TIME} -- ${LOG_TYPE}: ${MSG}\r\n" >> "${EMAIL_LOG_OUTPUT}"      
+            echo -ne "${TIME} -- ${LOG_TYPE}: ${MSG}\r\n" >> "${EMAIL_LOG_OUTPUT}"
         fi
     fi
 }
@@ -208,10 +208,11 @@ sanityCheck() {
         exit 1
     fi
 
-    # use of global ghettoVCB configuration
-    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
-        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
-    fi
+    #29.08.14 Commented out here because of "WORKDIR_DEBUG=1" and <trap ...> definition in calling place => moved into calling place.
+    ## use of global ghettoVCB configuration
+    ##if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
+    ##    reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
+    ##fi
 
     # always log to STDOUT, use "> /dev/null" to ignore output
     LOG_TO_STDOUT=1
@@ -418,7 +419,7 @@ getVMDKs() {
         #if valid, then we use the vmdk file
         if [[ $? -eq 0 ]]; then
             #verify disk is not independent
-            grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1 
+            grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1
             if [[ $? -eq 1 ]]; then
                 grep -i "^${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
 
@@ -511,6 +512,11 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_FROM = ${EMAIL_FROM}"
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
+
+        #29.08.14 Info about workdir
+        if [[ "${WORKDIR_DEBUG}" -eq 1 ]]; then
+          logger "info" "CONFIG - WORKDIR = ${WORKDIR}"
+        fi
     fi
     logger "info" ""
 }
@@ -842,7 +848,7 @@ ghettoVCB() {
 
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
-            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
@@ -870,13 +876,15 @@ ghettoVCB() {
             done
 
             HAS_INDEPENDENT_DISKS=0
-            logger "dryrun" "INDEPENDENT VMDK(s): "
-            for k in ${INDEP_VMDKS}; do
-                HAS_INDEPENDENT_DISKS=1
-                K_VMDK=$(echo "${k}" | awk -F "###" '{print $1}')
-                K_VMDK_SIZE=$(echo "${k}" | awk -F "###" '{print $2}')
-                logger "dryrun" "\t${K_VMDK}\t${K_VMDK_SIZE} GB"
-            done
+            if [[ ! -z ${INDEP_VMDKS} ]] ; then  #27.08.14 Added "if..; then" and "fi"
+                logger "dryrun" "INDEPENDENT VMDK(s):"
+                for k in ${INDEP_VMDKS}; do
+                    HAS_INDEPENDENT_DISKS=1
+                    K_VMDK=$(echo "${k}" | awk -F "###" '{print $1}')
+                    K_VMDK_SIZE=$(echo "${k}" | awk -F "###" '{print $2}')
+                    logger "dryrun" "\t${K_VMDK}\t${K_VMDK_SIZE} GB"
+                done
+            fi
 
             IFS="${OLD_IFS}"
             VMDKS=""
@@ -884,7 +892,7 @@ ghettoVCB() {
 
             logger "dryrun" "TOTAL_VM_SIZE_TO_BACKUP: ${TOTAL_VM_SIZE} GB"
             if [[ ${HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
-                logger "dryrun" "Snapshots can not be taken for indepdenent disks!"
+                logger "dryrun" "Snapshots can not be taken for independent disks!"  #05.09.14
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
@@ -1018,7 +1026,7 @@ ghettoVCB() {
 
                         findVMDK "${VMDK}"
 
-                        if [[ $isVMDKFound -eq 1 ]] || [[ "${VMDK_FILES_TO_BACKUP}" == "all" ]]; then 
+                        if [[ $isVMDKFound -eq 1 ]] || [[ "${VMDK_FILES_TO_BACKUP}" == "all" ]]; then
                             #added this section to handle VMDK(s) stored in different datastore than the VM
                             echo ${VMDK} | grep "^/vmfs/volumes" > /dev/null 2>&1
                             if [[ $? -eq 0 ]] ; then
@@ -1067,7 +1075,7 @@ ghettoVCB() {
 
                                     if  [[ -z "${FORMAT_OPTION}" ]] ; then
                                         logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1                  
+                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
                                     else
                                         logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\""
                                         ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
@@ -1137,9 +1145,11 @@ ghettoVCB() {
                 else
                     checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
                 fi
+
                 IFS=${TMP_IFS}
-                VMDKS=""
-                INDEP_VMDKS=""
+
+                #VMDKS=""         #27.08.14 Commented out, moved to end of this block
+                #INDEP_VMDKS=""   #27.08.14 Commented out, moved to end of this block
 
                 endTimer
                 if [[ ${SNAP_SUCCESS} -ne 1 ]] ; then
@@ -1153,7 +1163,16 @@ ghettoVCB() {
                 elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
                     logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
+
+                    #27.08.14 To get proper "Final status" message, if there has been at least one normal VMDK in addition to Independant VMDKs,
+                    #backup of virtual machine has been partially succesfull:
+                    if [[ ! -z ${VMDKS} ]] ; then
+                        VM_OK=1
+                    fi
+
+                    #Some of the VMDKs failed because of Independant definition:
                     VMDK_FAILED=1
+
                     #experimental
                     #create symlink for the very last backup to support rsync functionality for additinal replication
                     if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
@@ -1192,6 +1211,10 @@ ghettoVCB() {
                     #storage info after backup
                     storageInfo "after"
                 fi
+
+                VMDKS=""         #27.08.14
+                INDEP_VMDKS=""   #27.08.14
+
             else
                 if [[ ${CONTINUE_TO_BACKUP} -eq 0 ]] ; then
                     logger "info" "ERROR: Failed to backup ${VM_NAME}!\n"
@@ -1337,6 +1360,7 @@ USE_VM_CONF=0
 USE_GLOBAL_CONF=0
 BACKUP_ALL_VMS=0
 EXCLUDE_SOME_VMS=0
+WORKDIR_DEFAULT=/tmp/ghettoVCB.work           #29.08.14
 
 # quick sanity check on the number of arguments
 if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
@@ -1353,13 +1377,13 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         a)
             BACKUP_ALL_VMS=1
-            VM_FILE='${WORKDIR}/vm-input-list'
+            VM_FILE='vm-input-list'           #29.08.14 Was ${WORKDIR}/vm-input-list, related to cmdline location of "-w"
             ;;
         f)
             VM_FILE="${OPTARG}"
             ;;
         m)
-            VM_FILE='${WORKDIR}/vm-input-list'
+            VM_FILE='vm-input-list'           #29.08.14 Was ${WORKDIR}/vm-input-list, related to cmdline location of "-w"
             VM_ARG="${OPTARG}"
             ;;
         e)
@@ -1386,11 +1410,17 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         *)
             printUsage
+            exit 1       #23.08.14 Do not continue in case of unkown parameter
             ;;
     esac
 done
 
-WORKDIR=${WORKDIR:-"/tmp/ghettoVCB.work"}
+WORKDIR=${WORKDIR:-"${WORKDIR_DEFAULT}"}
+
+#29.08.14 Now "-w" parameter does not need to be located before parameters -a and -m on command line.
+if [[ "${VM_FILE}" == "vm-input-list" ]]; then
+  VM_FILE=${WORKDIR}/${VM_FILE}
+fi
 
 EMAIL_LOG_HEADER=${WORKDIR}/ghettoVCB-email-$$.header
 EMAIL_LOG_OUTPUT=${WORKDIR}/ghettoVCB-email-$$.log
@@ -1405,13 +1435,21 @@ if [[ "${WORKDIR}" == "/" ]]; then
     exit 1
 fi
 
-if mkdir "${WORKDIR}"; then
+if [[ -d "${WORKDIR}" ]] || mkdir "${WORKDIR}"; then  #29.08.14 Added test "[[ -d ... ]] ||"
+
+    # use of global ghettoVCB configuration           #29.08.14 Moved here from sanityCheck because of "WORKDIR_DEBUG=1" and command <trap 'rm -rf "${WORKDIR}"' 0> below.
+    if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
+        reConfigureGhettoVCBConfiguration "${GLOBAL_CONF}"
+    fi
+
+    rm -rf ${WORKDIR}/*                               #29.08.14 Keep latest logs only, needs at least >${EMAIL_LOG_OUTPUT} in case WORKDIR is not deleted.
+
     # create VM_FILE if we're backing up everything/specified a vm on the command line
     [[ $BACKUP_ALL_VMS -eq 1 ]] && touch ${VM_FILE}
     [[ -n "${VM_ARG}" ]] && echo "${VM_ARG}" > "${VM_FILE}"
 
     if [[ "${WORKDIR_DEBUG}" -eq 1 ]] ; then
-        LOG_TO_STDOUT=1 logger "info" "Workdir: ${WORKDIR} will not! be removed on exit"
+        LOG_TO_STDOUT=1 logger "info" "Workdir: ${WORKDIR} will not be removed on exit!"
     else
         # remove workdir when script finishes
         trap 'rm -rf "${WORKDIR}"' 0
@@ -1426,8 +1464,10 @@ if mkdir "${WORKDIR}"; then
     logger "info" "============================== ghettoVCB LOG START ==============================\n"
     logger "debug" "Succesfully acquired lock directory - ${WORKDIR}\n"
 
-    # terminate script and remove workdir when a signal is received
-    trap 'rm -rf "${WORKDIR}" ; exit 2' 1 2 3 13 15
+    if [[ "${WORKDIR_DEBUG}" -eq 0 ]] ; then  #29.08.14 Enclosed trap inside "if..;then...fi"
+      # terminate script and remove workdir when a signal is received
+      trap 'rm -rf "${WORKDIR}" ; exit 2' 1 2 3 13 15
+    fi
 
     ghettoVCB ${VM_FILE}
 

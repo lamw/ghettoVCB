@@ -1,4 +1,4 @@
-# Author: William Lam 
+# Author: William Lam
 # 08/18/2009
 # http://www.virtuallyghetto.com/
 ##################################################################
@@ -206,7 +206,7 @@ ghettoVCBrestore() {
                         fi
                     fi
 
-                    if [ "${DISK}" != "" ]; then 
+                    if [ "${DISK}" != "" ]; then
                         SCSI_CONTROLLER=$(echo ${DISK} | awk -F '=' '{print $1}')
                         RENAME_DESTINATION_LINE_VMDK_DISK="${SCSI_CONTROLLER} = \"${VM_DISPLAY_NAME}-${NUM_OF_VMDKS}.vmdk\""
                         if [ -z "${VMDK_LIST_TO_MODIFY}" ]; then
@@ -220,7 +220,7 @@ ghettoVCBrestore() {
                 NUM_OF_VMDKS=$((NUM_OF_VMDKS+1))
             done
             IFS=${TMP_IFS}
-        else 
+        else
             logger "Support for .tgz not supported - \"${VM_TO_RESTORE}\" will not be backed up!"
             IS_TGZ=1
         fi
@@ -248,17 +248,17 @@ if [ ! "${IS_TGZ}" == "1" ]; then
     else
         #validates the datastore to restore is valid and available
         if [ ! -d "${DATASTORE_TO_RESTORE_TO}" ]; then
-            logger "ERROR: Unable to verify datastore locateion: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
-            #validates that all 4 required variables are defined before continuing 
+            logger "ERROR: Unable to verify datastore location: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
+            #validates that all 4 required variables are defined before continuing
 
-        elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then			     	    
-            logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
+        elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then
+            logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"
             #validates that a directory with the same VM does not already exists
 
         elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}" ]; then
-            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!" 
+            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!"
 
-        else		
+        else
             logger "################## Restoring VM: $VM_DISPLAY_NAME  #####################"
             if [ "${DEVEL_MODE}" == "2" ]; then
                 logger "==========> DEBUG MODE LEVEL 2 ENABLED <=========="
@@ -272,7 +272,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
 
             #create VM folder on datastore if it doesn't already exists
             logger "Creating VM directory: \"${VM_RESTORE_DIR}\" ..."
-            if [ ! "${DEVEL_MODE}" == "2" ]; then	
+            if [ ! "${DEVEL_MODE}" == "2" ]; then
                 mkdir -p "${VM_RESTORE_DIR}"
             fi
 
@@ -346,7 +346,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                 fi
             done
             unset IFS
-            IFS="${OLD_IFS}"				
+            IFS="${OLD_IFS}"
 
             #register VM on ESX(i) host
             logger "Registering $VM_DISPLAY_NAME ..."
@@ -363,7 +363,7 @@ fi
 
 VMDK_LIST_TO_MODIFY=''
     done
-    unset IFS	
+    unset IFS
 
     endTimer
 }
@@ -377,7 +377,7 @@ VMDK_LIST_TO_MODIFY=''
 #read user input
 while getopts ":c:l:d:" ARGS; do
     case $ARGS in
-        c) 
+        c)
             CONFIG_FILE="${OPTARG}"
             ;;
         l)
