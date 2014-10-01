@@ -19,7 +19,9 @@ This bundle is fork of lamw/ghettoVCB:
 History of modifications:
 ===
 
--05.09.14   In ghettoVCB.sh fixed typo indepdenent => independent.
+- 01.10.14  Added VMKFSTOOLS_CMD_OPTIONS for VMKFSTOOLS_CMD command (f.ex VMKFSTOOLS_CMD_OPTIONS="-v 10")
+
+- 05.09.14  In ghettoVCB.sh fixed typo indepdenent => independent.
 
 - 29.08.14  Fixed handling of "-w" parameter, it does not have to be located before parameters -a and -m on command line anymore.
             Trap settings for removing workdir modified in case WORKDIR_DEBUG=1,

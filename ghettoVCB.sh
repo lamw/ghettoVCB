@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2014_08_29 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
-VERSION=2.1                   #27.08.14 Original: VERSION=2
+LAST_MODIFIED_DATE=2014_10_01 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
+VERSION=2.2                   #27.08.14 Original: VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -108,6 +108,9 @@ VM_STARTUP_ORDER=
 
 # RSYNC LINK 1=yes, 0 = no
 RSYNC_LINK=0
+
+# Extra options for ${VMKFSTOOLS_CMD} f.ex "-v 3" = verbose level 3   #01.10.14
+VMKFSTOOLS_CMD_OPTIONS=
 
 # DO NOT USE - UNTESTED CODE
 # Path to another location that should have backups rotated,
@@ -333,6 +336,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
+    DEFAULT_VMKFSTOOLS_CMD_OPTIONS="${VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
 }
 
 useDefaultConfigurations() {
@@ -354,6 +358,7 @@ useDefaultConfigurations() {
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
+    VMKFSTOOLS_CMD_OPTIONS="${DEFAULT_VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -505,6 +510,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
     logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
+    logger "info" "CONFIG - VMKFSTOOLS_CMD_OPTIONS = ${VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
         logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
@@ -1074,11 +1080,12 @@ ghettoVCB() {
                                     ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
 
                                     if  [[ -z "${FORMAT_OPTION}" ]] ; then
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
+                                        #01.10.14 Added ${VMKFSTOOLS_CMD_OPTIONS}" below
+                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\" ${VMKFSTOOLS_CMD_OPTIONS}"
+                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" ${VMKFSTOOLS_CMD_OPTIONS} > "${VMDK_OUTPUT}" 2>&1
                                     else
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
+                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\" ${VMKFSTOOLS_CMD_OPTIONS}"
+                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" ${VMKFSTOOLS_CMD_OPTIONS} > "${VMDK_OUTPUT}" 2>&1
                                     fi
 
                                     VMDK_EXIT_CODE=$?
