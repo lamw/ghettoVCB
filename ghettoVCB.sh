@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2014_10_01 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
-VERSION=2.2                   #27.08.14 Original: VERSION=2
+LAST_MODIFIED_DATE=2014_10_16 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
+VERSION=2.3                   #27.08.14 Original: VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -111,6 +111,9 @@ RSYNC_LINK=0
 
 # Extra options for ${VMKFSTOOLS_CMD} f.ex "-v 3" = verbose level 3   #01.10.14
 VMKFSTOOLS_CMD_OPTIONS=
+
+# Optional pause (seconds) between backup of vmdk's. 0 = no pause     #16.10.14
+VMKFSTOOLS_PAUSE=0
 
 # DO NOT USE - UNTESTED CODE
 # Path to another location that should have backups rotated,
@@ -337,6 +340,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_VMKFSTOOLS_CMD_OPTIONS="${VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
+    DEFAULT_VMKFSTOOLS_PAUSE="${VMKFSTOOLS_PAUSE}"               #16.10.14
 }
 
 useDefaultConfigurations() {
@@ -357,8 +361,9 @@ useDefaultConfigurations() {
     WORKDIR_DEBUG="${DEFAULT_WORKDIR_DEBUG}"
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
-    RSYNC_LINK="${RSYNC_LINK}"
+    RSYNC_LINK="${DEFAULT_RSYNC_LINK}"                           #16.10.14 Added prefix "DEFAULT_"
     VMKFSTOOLS_CMD_OPTIONS="${DEFAULT_VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
+    VMKFSTOOLS_PAUSE="${DEFAULT_VMKFSTOOLS_PAUSE}"               #16.10.14
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -511,6 +516,8 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     logger "info" "CONFIG - VMKFSTOOLS_CMD_OPTIONS = ${VMKFSTOOLS_CMD_OPTIONS}"   #01.10.14
+    logger "info" "CONFIG - VMKFSTOOLS_PAUSE = ${VMKFSTOOLS_PAUSE}"               #16.10.14
+
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
         logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
@@ -590,8 +597,16 @@ checkVMBackupRotation() {
         VM_BACKUP_ROTATION_COUNT=1
     fi
 
-    LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
-    BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
+    if [[ ${VM_VMDK_FAILED} -ne 0 ]] ; then     #16.10.14->
+        # Error with backup of VMDKs of this VM, remove latest falty backup if any.
+        LIST_BACKUPS=$(ls -tr "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
+        BACKUPS_TO_KEEP=$(ls -tr "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
+        logger "info" "Remove falty backup of ${VM_NAME}: ${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}. These backups will remain: ${BACKUPS_TO_KEEP} ..."
+    else                                        #16.10.14<-
+        # Backup of VMDK's of this VM was succesfull, remove oldest backup if any.
+        LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
+        BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
+    fi
 
     ORIG_IFS=${IFS}
     IFS='
@@ -997,7 +1012,7 @@ ghettoVCB() {
                 startTimer
 
                 SNAP_SUCCESS=1
-                VM_VMDK_FAILED=0
+                VM_VMDK_FAILED=0  #Default status for backup of VMDK's of this VM is "succesfull"
 
                 #powered on VMs only
                 if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
@@ -1012,7 +1027,7 @@ ghettoVCB() {
                         if [[ ${START_ITERATION} -ge ${SNAPSHOT_TIMEOUT} ]] ; then
                             logger "info" "Snapshot timed out, failed to create snapshot: \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
                             SNAP_SUCCESS=0
-                            echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
+                            [[ -d ${VM_BACKUP_DIR} ]] && echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
                             break
                         fi
 
@@ -1073,6 +1088,22 @@ ghettoVCB() {
                                     logger "info" "ERROR: wrong DISK_BACKUP_FORMAT \"${DISK_BACKUP_FORMAT}\ specified for ${VM_NAME}"
                                     VM_VMDK_FAILED=1
                                 else
+
+                                    #16.10.14 To debug "file already exist" error
+                                    if [[ "${LOG_LEVEL}" == "debug" ]] ; then
+                                       (
+                                        echo "======= -- debug:"
+                                        echo VMDK:${VMDK} VMX_DIR:${VMX_DIR} VM_BACKUP_DIR:${VM_BACKUP_DIR} VMX_PATH:${VMX_PATH} VMDKS:${VMDKS}
+                                        echo "======= -- debug:"
+                                        echo Contents of directory ${VMX_DIR} for ${VMDK} before issuing VMKFSTOOLS_CMD ...
+                                        ls -laL ${VMX_DIR}
+                                        echo "======= -- debug:"
+                                        echo Contents of backup directory ${VM_BACKUP_DIR} for ${VMDK} before issuing VMKFSTOOLS_CMD ...
+                                        ls -laL ${VM_BACKUP_DIR}
+                                        echo "======= -- debug:"
+                                       ) >> "${REDIRECT}" 2>&1
+                                    fi
+
                                     VMDK_OUTPUT=$(mktemp ${WORKDIR}/ghettovcb.XXXXXX)
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
@@ -1099,6 +1130,12 @@ ghettoVCB() {
                                         logger "info" "ERROR: error in backing up of \"${SOURCE_VMDK}\" for ${VM_NAME}"
                                         VM_VMDK_FAILED=1
                                     fi
+
+                                    #16.10.14 Optional pause between backup of different vmdk's (not with the last one or single VMDK)
+                                    if [[ ${VMKFSTOOLS_PAUSE} -gt 0 ]] && [[ "$(echo ${VMDKS} | awk -F ":" '{print $(NF)}' | awk -F "###" '{print $1}')" != "${VMDK}" ]]; then
+                                       logger "info" "Pause ${VMKFSTOOLS_PAUSE} s. after backup of \"${VMDK}\" for ${VM_NAME} ..."
+                                       sleep ${VMKFSTOOLS_PAUSE}
+                                    fi
                                 fi
                             else
                                 logger "info" "WARNING: A physical RDM \"${SOURCE_VMDK}\" was found for ${VM_NAME}, which will not be backed up"
@@ -1107,6 +1144,8 @@ ghettoVCB() {
                         fi
                     done
                     IFS="${OLD_IFS}"
+                else
+                    VM_VMDK_FAILED=1   #16.10.14 Snapshot failed => backup of VMDKs failed too
                 fi
 
                 #powered on VMs only w/snapshots
@@ -1131,9 +1170,108 @@ ghettoVCB() {
                     ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
                 fi
 
+                #16.10.14-> Commented out, moved to end of this block and modified
+                #TMP_IFS=${IFS}
+                #IFS=${ORIG_IFS}
+                #
+                #if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
+                #    COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
+                #
+                #    logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
+                #    ${TAR} -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
+                #
+                #    # verify compression
+                #    if [[ $? -eq 0 ]] && [[ -f "${COMPRESSED_ARCHIVE_FILE}" ]]; then
+                #        logger "info" "Successfully compressed backup for ${VM_NAME}!\n"
+                #        COMPRESSED_OK=1
+                #    else
+                #        logger "info" "Error in compressing ${VM_NAME}!\n"
+                #        COMPRESSED_OK=0
+                #    fi
+                #    rm -rf "${VM_BACKUP_DIR}"
+                #    checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+                #else
+                #    checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+                #fi
+                #
+                #IFS=${TMP_IFS}
+                #16.10.14<-
+
+                #VMDKS=""         #27.08.14 Commented out, moved to end of this block
+                #INDEP_VMDKS=""   #27.08.14 Commented out, moved to end of this block
+
+                #endTimer         #16.10.14 Commented out, moved to end of this block
+
+                if [[ ${SNAP_SUCCESS} -ne 1 ]] ; then
+                    logger "info" "ERROR: Unable to backup ${VM_NAME} due to snapshot creation!\n"
+                    #16.10.14 #[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || \
+                    echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
+                    VM_FAILED=1
+                elif [[ ${VM_VMDK_FAILED} -ne 0 ]] ; then
+                    logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
+                    #16.10.14 #[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || \
+                    echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" >> ${VM_BACKUP_DIR}/STATUS.error
+                    VMDK_FAILED=1
+                elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
+                    logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
+                    #16.10.14 #[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || \
+                    echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
+
+                    #27.08.14 To get proper "Final status" message, if there has been at least one normal VMDK in addition to Independant VMDKs,
+                    #backup of virtual machine has been partially succesfull:
+                    if [[ ! -z ${VMDKS} ]] ; then
+                        VM_OK=1
+                    fi
+
+                    #Some of the VMDKs failed because of Independant definition:
+                    VMDK_FAILED=1
+
+                    #16.10.14-> Commented out, moved to end of this block
+                    #experimental, create symlink for the very last backup to support rsync functionality for additinal replication
+                    #if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
+                    #    SYMLINK_DST=${VM_BACKUP_DIR}
+                    #    if [[ ${ENABLE_COMPRESSION} -eq 1 ]]; then
+                    #        SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
+                    #    else
+                    #        SYMLINK_DST1=${RSYNC_LINK_DIR}
+                    #    fi
+                    #    SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                    #    logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                    #    ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                    #fi
+
+                    #storage info after backup
+                    #storageInfo "after" #16.10.14<- Commented out, moved to end of this block
+                else
+                    logger "info" "Successfully completed backup for ${VM_NAME}!\n"
+                    #16.10.14 #[[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || \
+                    echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
+                    VM_OK=1
+
+                    #16.10.14-> Commented out, moved to end of this block
+                    #experimental, create symlink for the very last backup to support rsync functionality for additinal replication
+                    #if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
+                    #    SYMLINK_DST=${VM_BACKUP_DIR}
+                    #    if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
+                    #        SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
+                    #    else
+                    #        SYMLINK_DST1=${RSYNC_LINK_DIR}
+                    #    fi
+                    #    SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                    #    logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                    #    ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                    #fi
+
+                    #storage info after backup
+                    #storageInfo "after" #16.10.14<- Commented out, moved to end of this block
+                fi
+
+                #16.01.14-> Moved here from abowe
                 TMP_IFS=${IFS}
                 IFS=${ORIG_IFS}
-                if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
+
+                #16.01.14 Added test for "VM_VMDK_FAILED" => do not compress faulty backup, it will be removed by checkVMBackupRotation.
+                if [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ ${VM_VMDK_FAILED} -eq 0 ]] ; then
                     COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
 
                     logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
@@ -1154,73 +1292,28 @@ ghettoVCB() {
                 fi
 
                 IFS=${TMP_IFS}
+                #16.10.14<- Moved here from abowe
 
-                #VMDKS=""         #27.08.14 Commented out, moved to end of this block
-                #INDEP_VMDKS=""   #27.08.14 Commented out, moved to end of this block
-
-                endTimer
-                if [[ ${SNAP_SUCCESS} -ne 1 ]] ; then
-                    logger "info" "ERROR: Unable to backup ${VM_NAME} due to snapshot creation!\n"
-                    [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
-                    VM_FAILED=1
-                elif [[ ${VM_VMDK_FAILED} -ne 0 ]] ; then
-                    logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
-                    [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" >> ${VM_BACKUP_DIR}/STATUS.error
-                    VMDK_FAILED=1
-                elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
-                    logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
-                    [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
-
-                    #27.08.14 To get proper "Final status" message, if there has been at least one normal VMDK in addition to Independant VMDKs,
-                    #backup of virtual machine has been partially succesfull:
-                    if [[ ! -z ${VMDKS} ]] ; then
-                        VM_OK=1
+                #16.01.14-> Moved here from abowe
+                #experimental, create symlink for the very last backup to support rsync functionality for additional replication
+                if [[ "${RSYNC_LINK}" -eq 1 ]] && [[ ${VM_VMDK_FAILED} -eq 0 ]] ; then
+                    SYMLINK_DST=${VM_BACKUP_DIR}
+                    if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
+                        SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
+                    else
+                        SYMLINK_DST1=${RSYNC_LINK_DIR}
                     fi
-
-                    #Some of the VMDKs failed because of Independant definition:
-                    VMDK_FAILED=1
-
-                    #experimental
-                    #create symlink for the very last backup to support rsync functionality for additinal replication
-                    if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
-                        SYMLINK_DST=${VM_BACKUP_DIR}
-                        if [[ ${ENABLE_COMPRESSION} -eq 1 ]]; then
-                            SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
-                        else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
-                        fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
-                    fi
-
-                    #storage info after backup
-                    storageInfo "after"
-                else
-                    logger "info" "Successfully completed backup for ${VM_NAME}!\n"
-                    [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
-                    VM_OK=1
-
-                    #experimental
-                    #create symlink for the very last backup to support rsync functionality for additinal replication
-                    if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
-                        SYMLINK_DST=${VM_BACKUP_DIR}
-                        if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
-                            SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
-                        else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
-                        fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
-                        logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
-                    fi
-
-                    #storage info after backup
-                    storageInfo "after"
+                    SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                    logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                    ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                 fi
 
-                VMDKS=""         #27.08.14
-                INDEP_VMDKS=""   #27.08.14
+                storageInfo "after"
+                endTimer
+                #16.01.14<- Moved here from abowe
+
+                VMDKS=""         #27.08.14 Moved here from abowe
+                INDEP_VMDKS=""   #27.08.14 Moved here from abowe
 
             else
                 if [[ ${CONTINUE_TO_BACKUP} -eq 0 ]] ; then
@@ -1233,6 +1326,7 @@ ghettoVCB() {
             fi
         fi
     done
+
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
     #if [[ -n ${ADDITIONAL_ROTATION_PATH} ]]; then
@@ -1246,6 +1340,7 @@ ghettoVCB() {
     #        fi
     #    done
     #fi
+
     unset IFS
 
     if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
@@ -1480,7 +1575,9 @@ if [[ -d "${WORKDIR}" ]] || mkdir "${WORKDIR}"; then  #29.08.14 Added test "[[ -
 
     getFinalStatus
 
-    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
+    if [[ "${WORKDIR_DEBUG}" -eq 0 ]] ; then                  #16.10.14
+        logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
+    fi
     logger "info" "============================== ghettoVCB LOG END ================================\n"
 
     sendMail
