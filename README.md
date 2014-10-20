@@ -19,6 +19,8 @@ This bundle is fork of lamw/ghettoVCB:
 History of modifications:
 ===
 
+- 17.10.14  Fixed errors with optional pause: do not pause after last vmdk of vm. Added more debug messages.
+
 - 16.10.14  Fixed message "Succesfully removed lock directory" of debug mode. In case backup of any vmdk's of vm fails, make backup of vm fail too: do not compress faulty backup if compress is enabled (ENABLE_COMPRESSION), instead delete this faulty backup (in checkVMBackupRotation). Prev. is fix for symlink creation too because it has not been created in this case while backups were anyway rotated (RSYNC_LINK,SYMLINK_SRC). Changed location of compress and rsync blocks. Optional pause between backup of vmdk's (debug "file already exist" errors).
 
 - 01.10.14  Added VMKFSTOOLS_CMD_OPTIONS for VMKFSTOOLS_CMD command (f.ex VMKFSTOOLS_CMD_OPTIONS="-v 10")

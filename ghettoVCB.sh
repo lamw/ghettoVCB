@@ -602,6 +602,15 @@ checkVMBackupRotation() {
         LIST_BACKUPS=$(ls -tr "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
         BACKUPS_TO_KEEP=$(ls -tr "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
         logger "info" "Remove falty backup of ${VM_NAME}: ${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}. These backups will remain: ${BACKUPS_TO_KEEP} ..."
+
+        if [[ "${LOG_LEVEL}" == "debug" ]] ; then
+           (
+            echo "======= -- debug:"
+            echo Contents of backup directory ${VM_BACKUP_DIR} for ${VMDK} after failed VMKFSTOOLS_CMD ...
+            ls -laL ${VM_BACKUP_DIR}
+            echo "======="
+           ) >> "${REDIRECT}" 2>&1
+        fi
     else                                        #16.10.14<-
         # Backup of VMDK's of this VM was succesfull, remove oldest backup if any.
         LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
@@ -1100,7 +1109,7 @@ ghettoVCB() {
                                         echo "======= -- debug:"
                                         echo Contents of backup directory ${VM_BACKUP_DIR} for ${VMDK} before issuing VMKFSTOOLS_CMD ...
                                         ls -laL ${VM_BACKUP_DIR}
-                                        echo "======= -- debug:"
+                                        echo "======="
                                        ) >> "${REDIRECT}" 2>&1
                                     fi
 
@@ -1124,6 +1133,12 @@ ghettoVCB() {
                                     cat "${VMDK_OUTPUT}" >> "${REDIRECT}"
                                     echo >> "${REDIRECT}"
                                     echo
+
+                                    #16.10.14 Keep output messages of VMKFSTOOLS_CMD
+                                    if [[ "${LOG_LEVEL}" == "debug" ]] ; then
+                                        cp -p "${VMDK_OUTPUT}" "${WORKDIR}/ghettovcb_${VMDK}.log"
+                                    fi
+
                                     rm "${VMDK_OUTPUT}"
 
                                     if [[ "${VMDK_EXIT_CODE}" != 0 ]] ; then
@@ -1132,7 +1147,7 @@ ghettoVCB() {
                                     fi
 
                                     #16.10.14 Optional pause between backup of different vmdk's (not with the last one or single VMDK)
-                                    if [[ ${VMKFSTOOLS_PAUSE} -gt 0 ]] && [[ "$(echo ${VMDKS} | awk -F ":" '{print $(NF)}' | awk -F "###" '{print $1}')" != "${VMDK}" ]]; then
+                                    if [[ ${VMKFSTOOLS_PAUSE} -gt 0 ]] && [[ "$(echo ${VMDKS} | awk -F " " '{print $(NF)}' | awk -F "###" '{print $1}')" != "${VMDK}" ]]; then
                                        logger "info" "Pause ${VMKFSTOOLS_PAUSE} s. after backup of \"${VMDK}\" for ${VM_NAME} ..."
                                        sleep ${VMKFSTOOLS_PAUSE}
                                     fi
