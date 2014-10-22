@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2014_10_16 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
-VERSION=2.3                   #27.08.14 Original: VERSION=2
+LAST_MODIFIED_DATE=2014_10_22 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
+VERSION=2.4                   #27.08.14 Original: VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -661,7 +661,12 @@ storageInfo() {
     SECTION=$1
 
     #SOURCE DATASTORE
-    SRC_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+
+    #22.10.14 Removed parameter '-i' because with it, grep finds two values in VMware 5.5.0: "maxVirtualDiskCapacity" and "capacity"
+    #         resulting wrong value as value of 'SRC_DATASTORE_FREE:'.
+    #SRC_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+    SRC_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep    "capacity" | awk '{print $3}' | sed 's/,//g')
+
     SRC_DATASTORE_FREE=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i "freespace" | awk '{print $3}' | sed 's/,//g')
     SRC_DATASTORE_BLOCKSIZE=$($VMWARE_CMD hostsvc/datastore/info "${VMFS_VOLUME}" | grep -i blockSizeMb | awk '{print $3}' | sed 's/,//g')
     if [[ -z ${SRC_DATASTORE_BLOCKSIZE} ]] ; then
