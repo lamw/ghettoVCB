@@ -19,6 +19,8 @@ This bundle is fork of lamw/ghettoVCB:
 History of modifications:
 ===
 
+- 23.10.14  Fixed value displayed as "DST_DATASTORE_FREE" in debug mode. Fixed message when faulty backup is deleted to match situation where nothing is deleted (VM_BACKUP_ROTATION_COUNT). Do not continue backup of vm if backup of vmdk's of it has failed for some reason.
+
 - 22.10.14  Fixed value displayed as "SRC_DATASTORE_FREE" in debug mode. Command'.. | grep -i "capacity" ..' returned two values in VMware 5.5.0: "maxVirtualDiskCapacity" and "capacity" => parameter -i removed.
 
 - 17.10.14  Fixed errors with optional pause: do not pause after last vmdk of vm. Added more debug messages.

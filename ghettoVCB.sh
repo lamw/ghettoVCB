@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2014_10_22 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
-VERSION=2.4                   #27.08.14 Original: VERSION=2
+LAST_MODIFIED_DATE=2014_10_23 #29.08.14 Original: LAST_MODIFIED_DATE=2013_26_11
+VERSION=2.5                   #27.08.14 Original: VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -601,16 +601,7 @@ checkVMBackupRotation() {
         # Error with backup of VMDKs of this VM, remove latest falty backup if any.
         LIST_BACKUPS=$(ls -tr "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
         BACKUPS_TO_KEEP=$(ls -tr "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
-        logger "info" "Remove falty backup of ${VM_NAME}: ${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}. These backups will remain: ${BACKUPS_TO_KEEP} ..."
-
-        if [[ "${LOG_LEVEL}" == "debug" ]] ; then
-           (
-            echo "======= -- debug:"
-            echo Contents of backup directory ${VM_BACKUP_DIR} for ${VMDK} after failed VMKFSTOOLS_CMD ...
-            ls -laL ${VM_BACKUP_DIR}
-            echo "======="
-           ) >> "${REDIRECT}" 2>&1
-        fi
+        logger "info" "This is falty backup of ${VM_NAME}: ${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}. These backups will not be removed: ${BACKUPS_TO_KEEP}"
     else                                        #16.10.14<-
         # Backup of VMDK's of this VM was succesfull, remove oldest backup if any.
         LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}"    | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
@@ -686,7 +677,11 @@ storageInfo() {
     #DESTINATION DATASTORE
     DST_VOL_1=$(echo "${VM_BACKUP_VOLUME#/*/*/}")
     DST_DATASTORE=$(echo "${DST_VOL_1%%/*}")
-    DST_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+
+    #22.10.14 Removed parameter '-i' because with it, grep finds two values in VMware 5.5.0: "maxVirtualDiskCapacity" and "capacity"
+    #DST_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i "capacity" | awk '{print $3}' | sed 's/,//g')
+    DST_DATASTORE_CAPACITY=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep    "capacity" | awk '{print $3}' | sed 's/,//g')
+
     DST_DATASTORE_FREE=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i "freespace" | awk '{print $3}' | sed 's/,//g')
     DST_DATASTORE_BLOCKSIZE=$($VMWARE_CMD hostsvc/datastore/info "${DST_DATASTORE}" | grep -i blockSizeMb | awk '{print $3}' | sed 's/,//g')
 
@@ -1061,7 +1056,8 @@ ghettoVCB() {
 
                         findVMDK "${VMDK}"
 
-                        if [[ $isVMDKFound -eq 1 ]] || [[ "${VMDK_FILES_TO_BACKUP}" == "all" ]]; then
+                        #23.10.14 Continue backup of vm only if backup of previous vmdk's were succesfull (VM_VMDK_FAILED=0)
+                        if [[ ${VM_VMDK_FAILED} -eq 0 ]] && ( [[ $isVMDKFound -eq 1 ]] || [[ "${VMDK_FILES_TO_BACKUP}" == "all" ]] ) ; then
                             #added this section to handle VMDK(s) stored in different datastore than the VM
                             echo ${VMDK} | grep "^/vmfs/volumes" > /dev/null 2>&1
                             if [[ $? -eq 0 ]] ; then
@@ -1151,6 +1147,15 @@ ghettoVCB() {
                                         VM_VMDK_FAILED=1
                                     fi
 
+                                    if [[ "${LOG_LEVEL}" == "debug" ]] ; then
+                                       (
+                                        echo "======= -- debug:"
+                                        echo Contents of backup directory ${VM_BACKUP_DIR} for ${VMDK} after VMKFSTOOLS_CMD \(VM_VMDK_FAILED=${VM_VMDK_FAILED}\) ...
+                                        ls -laL ${VM_BACKUP_DIR}
+                                        echo "======="
+                                       ) >> "${REDIRECT}" 2>&1
+                                    fi
+
                                     #16.10.14 Optional pause between backup of different vmdk's (not with the last one or single VMDK)
                                     if [[ ${VMKFSTOOLS_PAUSE} -gt 0 ]] && [[ "$(echo ${VMDKS} | awk -F " " '{print $(NF)}' | awk -F "###" '{print $1}')" != "${VMDK}" ]]; then
                                        logger "info" "Pause ${VMKFSTOOLS_PAUSE} s. after backup of \"${VMDK}\" for ${VM_NAME} ..."
@@ -1161,7 +1166,9 @@ ghettoVCB() {
                                 logger "info" "WARNING: A physical RDM \"${SOURCE_VMDK}\" was found for ${VM_NAME}, which will not be backed up"
                                 VM_VMDK_FAILED=1
                             fi
-                        fi
+                        elif [[ ${VM_VMDK_FAILED} -ne 0 ]] ; then #23.10.14->
+                            logger "info" "WARNING: Backup of \"${VMDK}\" for \"${VM_NAME}\" terminated because backup of some other vmdk failed earlier"
+                        fi                                        #23.10.14<-
                     done
                     IFS="${OLD_IFS}"
                 else
