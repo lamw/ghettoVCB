@@ -5,7 +5,7 @@
 ##################################################################
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
-VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
+VM_BACKUP_VOLUME=/vmfs/volumes/ESXi-Backup
 
 # Format output of VMDK backup
 # zeroedthick
@@ -17,10 +17,17 @@ DISK_BACKUP_FORMAT=thin
 # Number of backups for a given VM before deleting
 VM_BACKUP_ROTATION_COUNT=3
 
+# DO NOT USE IN THE SAME TIME WITH SUSPEND_VM_BEFORE_BACKUP
 # Shutdown guestOS prior to running backups and power them back on afterwards
 # This feature assumes VMware Tools are installed, else they will not power down and loop forever
 # 1=on, 0 =off
 POWER_VM_DOWN_BEFORE_BACKUP=0
+
+# DO NOT USE IN THE SAME TIME WITH POWER_VM_DOWN_BEFORE_BACKUP
+# Suspend guestOS prior to running backups and power them back on afterwards
+# This feature assumes VMware Tools are installed, else they will not suspend and loop forever
+# 1=on, 0 =off
+SUSPEND_VM_BEFORE_BACKUP=0
 
 # enable shutdown code 1=on, 0 = off
 ENABLE_HARD_POWER_OFF=0
@@ -33,6 +40,10 @@ ITER_TO_WAIT_SHUTDOWN=3
 # Number of iterations the script will wait before giving up on powering down the VM and ignoring it for backup
 # this will be a multiple of 60 (e.g) = 5, which means this will wait up to 300secs (5min) before it gives up
 POWER_DOWN_TIMEOUT=5
+
+# Number of iterations the script will wait before giving up on suspending the VM and ignoring it for backup
+# this will be a multiple of 60 (e.g) = 5, which means this will wait up to 300secs (5min) before it gives up
+SUSPEND_TIMEOUT=5
 
 # enable compression with gzip+tar 1=on, 0=off
 ENABLE_COMPRESSION=0
@@ -76,7 +87,7 @@ NFS_VM_BACKUP_DIR=mybackups
 EMAIL_LOG=0
 
 # Email Delay Interval from NC (netcat) - default 1
-EMAIL_DELAY_INTERVAL=1
+EMAIL_DELAY_INTERVAL=0
 
 # Email SMTP server
 EMAIL_SERVER=auroa.primp-industries.com
@@ -101,6 +112,16 @@ VM_STARTUP_ORDER=
 # destination as the ADDITIONAL_ROTATION_PATH which will be rotated after
 # all VMs have been restarted
 ADDITIONAL_ROTATION_PATH=
+
+##########################################################
+# PERSISTENT LUN
+# 
+# ENABLE REFRESH ON LUN BEFORE BACKUP 1=on, 0=off
+
+ENABLE_REFRESH_LUN=0
+
+# iSCSI Software adapter name
+ISCSI_INTERFACE=vmhba37
 
 ############################
 ######### DEBUG ############
@@ -242,9 +263,11 @@ sanityCheck() {
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
         VMWARE_CMD=/usr/bin/vmware-vim-cmd
         VMKFSTOOLS_CMD=/usr/sbin/vmkfstools
+        ESXCFGRESCAN_CMD=/usr/bin/esxcfg-rescan
     elif [[ -f /bin/vim-cmd ]]; then
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
+        ESXCFGRESCAN_CMD=/bin/esxcfg-rescan
     else
         logger "info" "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+ or 5.0!"
         echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+ or 5.0!"
@@ -254,7 +277,7 @@ sanityCheck() {
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
     case "${ESX_VERSION}" in
-        5.0.0|5.1.0)    VER=5; break;;
+        5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)    VER=4; break;;
         3.5.0|3i)       VER=3; break;;
         *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
@@ -310,9 +333,11 @@ captureDefaultConfigurations() {
     DEFAULT_DISK_BACKUP_FORMAT="${DISK_BACKUP_FORMAT}"
     DEFAULT_VM_BACKUP_ROTATION_COUNT="${VM_BACKUP_ROTATION_COUNT}"
     DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP="${POWER_VM_DOWN_BEFORE_BACKUP}"
+    DEFAULT_SUSPEND_VM_BEFORE_BACKUP="${SUSPEND_VM_BEFORE_BACKUP}"
     DEFAULT_ENABLE_HARD_POWER_OFF="${ENABLE_HARD_POWER_OFF}"
     DEFAULT_ITER_TO_WAIT_SHUTDOWN="${ITER_TO_WAIT_SHUTDOWN}"
     DEFAULT_POWER_DOWN_TIMEOUT="${POWER_DOWN_TIMEOUT}"
+    DEFAULT_SUSPEND_TIMEOUT="${SUSPEND_TIMEOUT}"
     DEFAULT_SNAPSHOT_TIMEOUT="${SNAPSHOT_TIMEOUT}"
     DEFAULT_ENABLE_COMPRESSION="${ENABLE_COMPRESSION}"
     DEFAULT_VM_SNAPSHOT_MEMORY="${VM_SNAPSHOT_MEMORY}"
@@ -330,9 +355,11 @@ useDefaultConfigurations() {
     DISK_BACKUP_FORMAT="${DEFAULT_DISK_BACKUP_FORMAT}"
     VM_BACKUP_ROTATION_COUNT="${DEFAULT_VM_BACKUP_ROTATION_COUNT}"
     POWER_VM_DOWN_BEFORE_BACKUP="${DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP}"
+    SUSPEND_VM_BEFORE_BACKUP="${DEFAULT_SUSPEND_VM_BEFORE_BACKUP}"
     ENABLE_HARD_POWER_OFF="${DEFAULT_ENABLE_HARD_POWER_OFF}"
     ITER_TO_WAIT_SHUTDOWN="${DEFAULT_ITER_TO_WAIT_SHUTDOWN}"
     POWER_DOWN_TIMEOUT="${DEFAULT_POWER_DOWN_TIMEOUT}"
+    SUSPEND_TIMEOUT="${DEFAULT_SUSPEND_TIMEOUT}"
     SNAPSHOT_TIMEOUT="${DEFAULT_SNAPSHOT_TIMEOUT}"
     ENABLE_COMPRESSION="${DEFAULT_ENABLE_COMPRESSION}"
     VM_SNAPSHOT_MEMORY="${DEFAULT_VM_SNAPSHOT_MEMORY}"
@@ -474,13 +501,19 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_MOUNT = ${NFS_MOUNT}"
     fi
+    if [[ "${ENABLE_REFRESH_LUN}" -eq 1 ]]; then
+        logger "info" "CONFIG - ENABLE_REFRESH_LUN = ${ENABLE_REFRESH_LUN}"
+        logger "info" "CONFIG - ISCSI_INTERFACE = ${ISCSI_INTERFACE}"
+    fi
     logger "info" "CONFIG - VM_BACKUP_ROTATION_COUNT = ${VM_BACKUP_ROTATION_COUNT}"
     logger "info" "CONFIG - VM_BACKUP_DIR_NAMING_CONVENTION = ${VM_BACKUP_DIR_NAMING_CONVENTION}"
     logger "info" "CONFIG - DISK_BACKUP_FORMAT = ${DISK_BACKUP_FORMAT}"
     logger "info" "CONFIG - POWER_VM_DOWN_BEFORE_BACKUP = ${POWER_VM_DOWN_BEFORE_BACKUP}"
+    logger "info" "CONFIG - SUSPEND_VM_BEFORE_BACKUP = ${SUSPEND_VM_BEFORE_BACKUP}"
     logger "info" "CONFIG - ENABLE_HARD_POWER_OFF = ${ENABLE_HARD_POWER_OFF}"
     logger "info" "CONFIG - ITER_TO_WAIT_SHUTDOWN = ${ITER_TO_WAIT_SHUTDOWN}"
     logger "info" "CONFIG - POWER_DOWN_TIMEOUT = ${POWER_DOWN_TIMEOUT}"
+    logger "info" "CONFIG - SUSPEND_TIMEOUT = ${SUSPEND_TIMEOUT}"
     logger "info" "CONFIG - SNAPSHOT_TIMEOUT = ${SNAPSHOT_TIMEOUT}"
     logger "info" "CONFIG - LOG_LEVEL = ${LOG_LEVEL}"
     logger "info" "CONFIG - BACKUP_LOG_OUTPUT = ${LOG_OUTPUT}"
@@ -712,6 +745,34 @@ powerOff() {
     fi
 }
 
+suspend() {
+    VM_NAME="$1"
+    VM_ID="$2"
+    SUSPEND_EC=0
+
+    START_ITERATION=0
+    logger "info" "Suspend initiated for ${VM_NAME}, backup will not begin until VM is suspended..."
+
+    ${VMWARE_CMD} vmsvc/power.suspend ${VM_ID} > /dev/null 2>&1
+    while ${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | grep -i "Powered on" > /dev/null 2>&1; do
+
+        logger "info" "VM is still on - Iteration: ${START_ITERATION} - sleeping for 60secs (Duration: $((START_ITERATION*60)) seconds)"
+        sleep 60
+
+        #logic to not backup this VM if unable to shutdown
+        #after certain timeout period
+        if [[ ${START_ITERATION} -ge ${SUSPEND_TIMEOUT} ]] ; then
+            logger "info" "Unable to suspend ${VM_NAME}, waited for $((SUSPEND_TIMEOUT*60)) seconds! Ignoring ${VM_NAME} for backup!"
+            SUSPEND_EC=1
+            break
+        fi
+        START_ITERATION=$((START_ITERATION + 1))
+    done
+    if [[ ${SUSPEND_EC} -eq 0 ]] ; then
+        logger "info" "VM is suspended"
+    fi
+}
+
 powerOn() {
     VM_NAME="$1"
     VM_ID="$2"
@@ -756,7 +817,12 @@ ghettoVCB() {
             ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
         fi
     fi
-
+    if [[ ${ENABLE_REFRESH_LUN} -eq 1 ]] ; then
+        if [[ "${LOG_LEVEL}" !=  "dryrun" ]] ; then
+            logger "debug" "Refresh lun before backup operations on interface : ${ISCSI_INTERFACE}"
+            ${ESXCFGRESCAN_CMD} "${ISCSI_INTERFACE}"
+        fi
+    fi
     captureDefaultConfigurations
 
     if [[ "${USE_GLOBAL_CONF}" -eq 1 ]] ; then
@@ -889,6 +955,7 @@ ghettoVCB() {
 
         #checks to see if the VM has any snapshots to start with
         elif ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
+
             if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                 logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                 VM_FAILED=1
@@ -958,6 +1025,15 @@ ghettoVCB() {
             if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
                 powerOff "${VM_NAME}" "${VM_ID}"
                 if [[ ${POWER_OFF_EC} -eq 1 ]]; then
+                    VM_FAILED=1
+                    CONTINUE_TO_BACKUP=0
+                fi
+            fi
+
+            #section that will suspend a VM prior to taking a snapshot and backup and power it back on
+            if [[ ${SUSPEND_VM_BEFORE_BACKUP} -eq 1 ]] ; then
+                suspend "${VM_NAME}" "${VM_ID}"
+                if [[ ${SUSPEND_EC} -eq 1 ]]; then
                     VM_FAILED=1
                     CONTINUE_TO_BACKUP=0
                 fi
@@ -1097,6 +1173,12 @@ ghettoVCB() {
 
                 if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
                     #power on vm that was powered off prior to backup
+                    logger "info" "Powering back on ${VM_NAME}"
+                    ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
+                fi
+
+                 if [[ ${SUSPEND_VM_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
+                    #power on vm that was suspended prior to backup
                     logger "info" "Powering back on ${VM_NAME}"
                     ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
                 fi
