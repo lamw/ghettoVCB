@@ -7,8 +7,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2013_26_11
-VERSION=2
+LAST_MODIFIED_DATE=2015_04_04
+VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-2/backups
@@ -139,7 +139,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+ and 5.x"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+, 5.x & 6.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -262,10 +262,11 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
+        6.0.0)                VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
@@ -286,7 +287,7 @@ sanityCheck() {
     [[ ! -f /bin/tar ]] && TAR="busybox tar"
 
     # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
-    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 ]]; then
+    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 ]] || [[ "${VER}" == "6" ]]; then
         esxcli system module list | grep multiextent > /dev/null 2>&1
 	if [ $? -eq 1 ]; then
             logger "info" "multiextent VMkernel module is not loaded & is required for 2gbsparse, enabling ..."
@@ -1038,7 +1039,7 @@ ghettoVCB() {
                             if [[ $? -eq 1 ]] ; then
                                 FORMAT_OPTION="UNKNOWN"
                                 if [[ "${DISK_BACKUP_FORMAT}" == "zeroedthick" ]] ; then
-                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] ; then
+                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
                                         FORMAT_OPTION="zeroedthick"
                                     else
                                         FORMAT_OPTION=""
@@ -1048,7 +1049,7 @@ ghettoVCB() {
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "thin" ]] ; then
                                     FORMAT_OPTION="thin"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "eagerzeroedthick" ]] ; then
-                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] ; then
+                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
                                         FORMAT_OPTION="eagerzeroedthick"
                                     else
                                         FORMAT_OPTION=""
@@ -1297,7 +1298,7 @@ sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
         #validate firewall has email port open for ESXi 5
-        if [[ "${VER}" == "5" ]] ; then
+        if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
             /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
