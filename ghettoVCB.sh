@@ -102,6 +102,12 @@ EMAIL_FROM=root@ghettoVCB
 # Email RCPT
 EMAIL_TO=auroa@primp-industries.com
 
+# Email SMTP username
+EMAIL_USER_NAME=
+
+# Email SMTP password
+EMAIL_USER_PASSWORD=
+
 # Comma separated list of VM startup/shutdown ordering
 VM_SHUTDOWN_ORDER=
 VM_STARTUP_ORDER=
@@ -333,6 +339,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
+    DEFAULT_EMAIL_SERVER_PORT="${EMAIL_SERVER_PORT}"
 }
 
 useDefaultConfigurations() {
@@ -354,6 +361,7 @@ useDefaultConfigurations() {
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
+    EMAIL_SERVER_PORT="${DEFAULT_EMAIL_SERVER_PORT}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -1274,8 +1282,14 @@ getFinalStatus() {
 
 buildHeaders() {
     EMAIL_ADDRESS=$1
-
-    echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
+    echo -ne "EHLO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
+   
+    #If username is provided, we add an AUTH PLAIN command to perform authentication
+    if [[ ! -z "${EMAIL_USER_NAME}" ]]; then
+       EMAIL_LOGIN_PLAIN_B64=$(printf '%s\0%s\0%s' "$EMAIL_USER_NAME" "$EMAIL_USER_NAME" "$EMAIL_USER_PASSWORD" | python -m base64)
+       echo -ne "AUTH PLAIN $EMAIL_LOGIN_PLAIN_B64\r\n" >> "${EMAIL_LOG_HEADER}"
+    fi
+   
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1327,6 +1341,7 @@ sendMail() {
         fi
     fi
 }
+
 
 ####################
 #                  #

@@ -21,12 +21,13 @@ printUsage() {
     echo "#"
     echo "###############################################################################"
     echo
-    echo "Usage: $0 -c [VM_BACKUP_UP_LIST] -l [LOG_FILE] -d [DRYRUN_DEBUG_INFO]"
+    echo "Usage: $0 -c [VM_BACKUP_UP_LIST] -l [LOG_FILE] -d [DRYRUN_DEBUG_INFO] -f [FORCE_VM_DELETION]"
     echo
     echo "OPTIONS:"
     echo "   -c     VM backup list"
     echo "   -l     File ot output logging"
     echo "   -d     Dryrun/Debug Info [1|2]"
+    echo "   -f     Off/On [0|1]"
     echo
     echo "(e.g.)"
     echo -e "\nOutput will go to stdout"
@@ -36,6 +37,7 @@ printUsage() {
     echo -e "\nDryrun/Debug Info (dryrun only)"
     echo -e "\t$0 -c vms_to_restore -d 1"
     echo -e "\t$0 -c vms_to_restore -d 2"
+    echo -e "\t$0 -c vms_to_restore -f 1"
     echo
     exit 1
 }
@@ -59,7 +61,7 @@ sanityCheck() {
         exit 1
     fi
 
-    if [[ ${NUM_OF_ARGS} -ne 2 ]] && [[ ${NUM_OF_ARGS} -ne 4 ]] && [[ ${NUM_OF_ARGS} -ne 6 ]]; then
+    if [[ ${NUM_OF_ARGS} -gt 7 ]]; then
         printUsage
     fi
 
@@ -171,8 +173,8 @@ ghettoVCBrestore() {
                 VM_DISPLAY_NAME=$(grep -i "displayName" "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | awk -F '=' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
                 VM_ORIG_FOLDER_NAME=$(echo "${VM_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-1].*//g')
                 VM_VMX_NAME=${VM_ORIG_VMX}
-		VM_RESTORE_FOLDER_NAME=${VM_ORIG_FOLDER_NAME}
-		VM_RESTORE_VMX=${VM_ORIG_VMX}
+                VM_RESTORE_FOLDER_NAME=${VM_ORIG_FOLDER_NAME}
+                VM_RESTORE_VMX=${VM_ORIG_VMX}
             else
                 VM_DISPLAY_NAME=${RESTORE_VM_NAME}
                 VM_RESTORE_FOLDER_NAME=${RESTORE_VM_NAME}
@@ -255,8 +257,8 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
             #validates that a directory with the same VM does not already exists
 
-        elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}" ]; then
-            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!" 
+        elif [[ -d "${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}" ]] && [[ ! "$FORCE_MODE" == 1 ]]; then
+            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore or use -f option to force" 
 
         else		
             logger "################## Restoring VM: $VM_DISPLAY_NAME  #####################"
@@ -272,7 +274,13 @@ if [ ! "${IS_TGZ}" == "1" ]; then
 
             #create VM folder on datastore if it doesn't already exists
             logger "Creating VM directory: \"${VM_RESTORE_DIR}\" ..."
-            if [ ! "${DEVEL_MODE}" == "2" ]; then	
+            if [ ! "${DEVEL_MODE}" == "2" ]; then
+            	
+                if [ -d "${VM_RESTORE_DIR}" ]; then
+                    logger "Force mode delete \"${VM_RESTORE_DIR}\" because already exist..."
+                    rm -R "${VM_RESTORE_DIR}"
+                fi
+                
                 mkdir -p "${VM_RESTORE_DIR}"
             fi
 
@@ -280,7 +288,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "Copying \"${VM_ORIG_VMX}\" file ..."
             if [ ! "${DEVEL_MODE}" == "2" ]; then
                 cp "${VM_TO_RESTORE}/${VM_ORIG_VMX}" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
-                sed -i "s/displayName =.*/displayName = ${VM_DISPLAY_NAME}/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+                sed -i "s/displayName =.*/displayName = \"${VM_DISPLAY_NAME}\"/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
             fi
 
             #loop through all VMDK(s) and vmkfstools copy to destination
@@ -352,7 +360,8 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "Registering $VM_DISPLAY_NAME ..."
 
             if [ ! "${DEVEL_MODE}" == "2" ]; then
-                ${VMWARE_CMD} solo/registervm "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+                #${VMWARE_CMD} solo/registervm "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+                echo "shunt"
             fi
 
             logger "End time: $(date)"
@@ -375,7 +384,7 @@ VMDK_LIST_TO_MODIFY=''
 ####################
 
 #read user input
-while getopts ":c:l:d:" ARGS; do
+while getopts ":c:l:d:f:" ARGS; do
     case $ARGS in
         c) 
             CONFIG_FILE="${OPTARG}"
@@ -385,6 +394,9 @@ while getopts ":c:l:d:" ARGS; do
             ;;
         d)
             DEVEL_MODE="${OPTARG}"
+            ;;
+        f)
+            FORCE_MODE="${OPTARG}"
             ;;
         :)
             echo "Option -${OPTARG} requires an argument."
