@@ -294,7 +294,7 @@ sanityCheck() {
     # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
     if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 ]]; then
         esxcli system module list | grep multiextent > /dev/null 2>&1
-	if [ $? -eq 1 ]; then
+    if [ $? -eq 1 ]; then
             logger "info" "multiextent VMkernel module is not loaded & is required for 2gbsparse, enabling ..."
             esxcli system module load -m multiextent
         fi
@@ -608,7 +608,7 @@ checkVMBackupRotation() {
                 NFS_IO_HACK_STATUS=0
                 NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
 
-                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
+                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 600 ]]; do
                     sleep 1
                     NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
                     touch "${NFS_IO_HACK_FILECHECK}"
@@ -773,12 +773,12 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-	    if [ ${ESX_RELEASE} == "5.5.0" ]; then
+        if [ ${ESX_RELEASE} == "5.5.0" ]; then
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
             else
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
             fi
-	fi
+    fi
     fi
 
     captureDefaultConfigurations
@@ -923,7 +923,7 @@ ghettoVCB() {
                     $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
                 fi
             fi
-    	    #nfs case and backup to root path of your NFS mount
+            #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
                 if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
@@ -1281,14 +1281,22 @@ getFinalStatus() {
 
 buildHeaders() {
     EMAIL_ADDRESS=$1
+
+    # echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
     echo -ne "EHLO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
-   
-    #If username is provided, we add an AUTH PLAIN command to perform authentication
+
+    #If username is provided, we add an AUTH LOGIN command to perform authentication
     if [[ ! -z "${EMAIL_USER_NAME}" ]]; then
-       EMAIL_LOGIN_PLAIN_B64=$(printf '%s\0%s\0%s' "$EMAIL_USER_NAME" "$EMAIL_USER_NAME" "$EMAIL_USER_PASSWORD" | python -m base64)
-       echo -ne "AUTH PLAIN $EMAIL_LOGIN_PLAIN_B64\r\n" >> "${EMAIL_LOG_HEADER}"
+       # EMAIL_LOGIN_PLAIN_B64=$(printf '%s\0%s\0%s' "$EMAIL_USER_NAME" "$EMAIL_USER_NAME" "$EMAIL_USER_PASSWORD" | python -m base64)
+       # echo -ne "AUTH PLAIN $EMAIL_LOGIN_PLAIN_B64\r\n" >> "${EMAIL_LOG_HEADER}"
+       
+       EMAIL_LOGIN_PLAIN_B64=$(printf '%s\0%s\0%s' "$EMAIL_USER_NAME" | python -m base64)
+       echo -ne "AUTH LOGIN $EMAIL_LOGIN_PLAIN_B64\r\n" >> "${EMAIL_LOG_HEADER}"
+       
+       EMAIL_LOGIN_PLAIN_B64=$(printf '%s\0%s\0%s' "$EMAIL_USER_PASSWORD" | python -m base64)
+       echo -ne "$EMAIL_LOGIN_PLAIN_B64\r\n" >> "${EMAIL_LOG_HEADER}"
     fi
-   
+
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1319,13 +1327,15 @@ sendMail() {
             fi
         fi
 
+        if ! grep "###### Final status: All VMs backed up OK! ######" ghettoVCB.log > /dev/null 2>&1
+        then
         echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
         if [[ $? -eq 0 ]] ; then
             ORIG_IFS=${IFS}
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+                cat "${EMAIL_LOG_CONTENT}" | ./slowcat.sh | "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
                 fi
@@ -1333,14 +1343,14 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+            cat "${EMAIL_LOG_CONTENT}" | ./slowcat.sh | "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
         fi
+        fi
     fi
 }
-
 
 ####################
 #                  #
