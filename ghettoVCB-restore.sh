@@ -85,8 +85,8 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x, 5.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x, 5.x!"
+        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
+        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
         exit
     fi
 
@@ -164,7 +164,7 @@ ghettoVCBrestore() {
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
             VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
             VM_VMDK_DESCRS=$(ls "${VM_TO_RESTORE}" | grep ".vmdk" | grep -v "\-flat.vmdk")
-            VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
+            VMDKS_FOUND=$(grep -iE '(scsi|ide|sata)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
             VM_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
 
             # Default to original VM Display Name if custom name is not specified
