@@ -160,6 +160,11 @@ ghettoVCBrestore() {
         fi
 
         #supports DIR or .TGZ from ghettoVCB.sh ONLY!
+        if [ ${VM_TO_RESTORE##*.} == 'gz' ]; then
+            logger "GZ found, extracting ..."
+            ${TAR} -xzf $VM_TO_RESTORE -C `dirname $VM_TO_RESTORE`
+            VM_TO_RESTORE=${VM_TO_RESTORE%.*}
+        fi
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
             VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
@@ -249,7 +254,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
     else
         #validates the datastore to restore is valid and available
         if [ ! -d "${DATASTORE_TO_RESTORE_TO}" ]; then
-            logger "ERROR: Unable to verify datastore locateion: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
+            logger "ERROR: Unable to verify datastore location: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
             #validates that all 4 required variables are defined before continuing 
 
         elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then			     	    

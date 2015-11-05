@@ -84,6 +84,8 @@ NFS_VM_BACKUP_DIR=mybackups
 # EMAIL CONFIGURATIONS
 #
 
+# Email Alerting 1=yes, 0=no
+EMAIL_ALERT=0
 # Email log 1=yes, 0=no
 EMAIL_LOG=0
 
@@ -99,8 +101,11 @@ EMAIL_SERVER_PORT=25
 # Email FROM
 EMAIL_FROM=root@ghettoVCB
 
-# Email RCPT
+# Comma seperated list of receiving email addresses
 EMAIL_TO=auroa@primp-industries.com
+
+# Comma seperated list of additional receiving email addresses if status is not "OK"
+EMAIL_ERRORS_TO=
 
 # Comma separated list of VM startup/shutdown ordering
 VM_SHUTDOWN_ORDER=
@@ -333,6 +338,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
+    DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 }
 
 useDefaultConfigurations() {
@@ -354,6 +360,7 @@ useDefaultConfigurations() {
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
+    BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -407,6 +414,9 @@ findVMDK() {
 getVMDKs() {
     #get all VMDKs listed in .vmx file
     VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
+
+    VMDKS=
+    INDEP_VMDKS=
 
     TMP_IFS=${IFS}
     IFS=${ORIG_IFS}
@@ -504,6 +514,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_SHUTDOWN_ORDER = ${VM_SHUTDOWN_ORDER}"
     logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
     logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
+    logger "info" "CONFIG - BACKUP_FILES_CHMOD = ${BACKUP_FILES_CHMOD}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
@@ -757,6 +768,7 @@ ghettoVCB() {
     VM_OK=0
     VM_FAILED=0
     VMDK_FAILED=0
+    PROBLEM_VMS=
 
     dumpHostInfo
 
@@ -803,7 +815,7 @@ ghettoVCB() {
             powerOff "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                 logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
-                exit 1
+                PROBLEM_VMS="${PROBLEM_VMS} ${VM_NAME}"
             fi
         done
 
@@ -815,6 +827,14 @@ ghettoVCB() {
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
+                IGNORE_VM=1
+
+            fi
+        fi
+
+        if [[ "${IGNORE_VM}" -eq 0 ]] && [[ -n "${PROBLEM_VMS}" ]] ; then
+            if [[ "${PROBLEM_VMS/$VM_NAME}" != "$PROBLEM_VMS" ]] ; then
+                logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
             fi
         fi
@@ -843,7 +863,8 @@ ghettoVCB() {
 
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
-            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"
+            VM_FAILED=1
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
@@ -1190,6 +1211,11 @@ ghettoVCB() {
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
+                    if [[ "${BACKUP_FILES_CHMOD}" != "" ]]
+                    then
+                        chmod -R "${BACKUP_FILES_CHMOD}" "${VM_BACKUP_DIR}"
+                    fi
+                    
                     #storage info after backup
                     storageInfo "after"
                 fi
@@ -1219,7 +1245,7 @@ ghettoVCB() {
     #fi
     unset IFS
 
-    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
+    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "VM Startup Order: ${VM_STARTUP_ORDER}\n"
         IFS=","
         for VM_NAME in ${VM_STARTUP_ORDER}; do
@@ -1296,13 +1322,32 @@ buildHeaders() {
 
 sendMail() {
     #close email message
-    if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
+    if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1]] ; then
         #validate firewall has email port open for ESXi 5
         if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
             /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
                 logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+            fi
+        fi
+    else 
+        if [[ "${EXIT}" -ne 0 ]]; then
+            for i in ${EMAIL_TO}; do
+                buildHeaders ${i}
+                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+                if [[ $? -eq 1 ]] ; then
+                    logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+                fi
+            done
+        fi
+
+
+        if [ "${EMAIL_ERRORS_TO}" != "" ] && [ "${LOG_STATUS}" != "OK" ] ; then
+            if [ "${EMAIL_TO}" == "" ] ; then
+                EMAIL_TO="${EMAIL_ERRORS_TO}"
+            else
+                EMAIL_TO="${EMAIL_TO},${EMAIL_ERRORS_TO}"
             fi
         fi
 
