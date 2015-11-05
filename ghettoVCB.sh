@@ -208,23 +208,12 @@ summary_logger() {
     VMLOG="$1"
     STATUS="$2"
 
-    if [[ "${internal_FIRST_SUMMARY}" != "DONE" ]]
-    then
-        if [[ "${SUMMARY_LOG}" != "" ]] && [[ "${SUMMARY_LOG}" != "0" ]]
-        then
-            echo "Summary status of ghettoVCB backup" >> "${SUMMARY_LOG}"
-            echo "----------------------------------" >> "${SUMMARY_LOG}"
-            echo "" >> "${SUMMARY_LOG}"
-            echo "Virtual machine__Backup status__Start time__End time" | awk -F__ '{printf "%-18s|%-20s|%-16s|%-16s\n",$1,$2,$3,$4}' >> "${SUMMARY_LOG}"
-            echo "------------------__--------------------__----------------__----------------" | awk -F__ '{printf "%-18s|%-20s|%-16s|%-16s\n",$1,$2,$3,$4}' >> "${SUMMARY_LOG}"
-        fi
-        internal_FIRST_SUMMARY="DONE"
-    fi
-
     if [[ "${SUMMARY_LOG}" != "" ]] && [[ "${SUMMARY_LOG}" != "0" ]]
     then
-        echo "${VMLOG}__${STATUS}__${SUMMARY_START_TIME}__${SUMMARY_END_TIME}" | awk -F__ '{printf "%-18s|%-20s|%-16s|%-16s\n",$1,$2,$3,$4}' >> "${SUMMARY_LOG}"
+        echo "${VMLOG}|${STATUS}|${SUMMARY_START_TIME}|${SUMMARY_END_TIME}" >> "${SUMMARY_LOG}"
     fi
+    SUMMARY_START_TIME=""
+    SUMMARY_END_TIME=""
 }
 
 sanityCheck() {
@@ -326,13 +315,11 @@ sanityCheck() {
 startTimer() {
     START_TIME=$(date)
     S_TIME=$(date +%s)
-    SUMMARY_START_TIME="$(date "+%Y/%m/%d %H:%M")"
 }
 
 endTimer() {
     END_TIME=$(date)
     E_TIME=$(date +%s)
-    SUMMARY_END_TIME="$(date "+%Y/%m/%d %H:%M")"
     DURATION=$(echo $((E_TIME - S_TIME)))
 
     #calculate overall completion time
@@ -842,8 +829,9 @@ ghettoVCB() {
     fi
 
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
-        startTimer
+        SUMMARY_START_TIME="$(date "+%Y/%m/%d %H:%M")"
         VM_SUMMARY_STATUS="UNKNOWN"
+        
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
@@ -1019,6 +1007,7 @@ ghettoVCB() {
 
             if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] ; then
                 logger "info" "Initiate backup for ${VM_NAME}"
+                startTimer
 
                 SNAP_SUCCESS=1
                 VM_VMDK_FAILED=0
@@ -1251,6 +1240,7 @@ ghettoVCB() {
                 fi
             fi
         fi
+        SUMMARY_END_TIME="$(date "+%Y/%m/%d %H:%M")"
         summary_logger "${VM_NAME}" "${VM_SUMMARY_STATUS}"
     done
     # UNTESTED CODE
