@@ -99,8 +99,11 @@ EMAIL_SERVER_PORT=25
 # Email FROM
 EMAIL_FROM=root@ghettoVCB
 
-# Email RCPT
+# Comma seperated list of receiving email addresses
 EMAIL_TO=auroa@primp-industries.com
+
+# Comma seperated list of additional receiving email addresses if status is not "OK"
+EMAIL_ERRORS_TO=
 
 # Comma separated list of VM startup/shutdown ordering
 VM_SHUTDOWN_ORDER=
@@ -1314,6 +1317,14 @@ sendMail() {
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
                 logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+            fi
+        fi
+
+        if [ "${EMAIL_ERRORS_TO}" != "" ] && [ "${LOG_STATUS}" != "OK" ] ; then
+            if [ "${EMAIL_TO}" == "" ] ; then
+                EMAIL_TO="${EMAIL_ERRORS_TO}"
+            else
+                EMAIL_TO="${EMAIL_TO},${EMAIL_ERRORS_TO}"
             fi
         fi
 
