@@ -160,6 +160,11 @@ ghettoVCBrestore() {
         fi
 
         #supports DIR or .TGZ from ghettoVCB.sh ONLY!
+        if [ ${VM_TO_RESTORE##*.} == 'gz' ]; then
+            logger "GZ found, extracting ..."
+            ${TAR} -xzf $VM_TO_RESTORE -C `dirname $VM_TO_RESTORE`
+            VM_TO_RESTORE=${VM_TO_RESTORE%.*}
+        fi
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
             VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
