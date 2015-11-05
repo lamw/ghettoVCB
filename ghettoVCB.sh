@@ -410,6 +410,9 @@ getVMDKs() {
     #get all VMDKs listed in .vmx file
     VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
 
+    VMDKS=
+    INDEP_VMDKS=
+
     TMP_IFS=${IFS}
     IFS=${ORIG_IFS}
     #loop through each disk and verify that it's currently present and create array of valid VMDKS
