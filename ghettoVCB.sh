@@ -84,6 +84,8 @@ NFS_VM_BACKUP_DIR=mybackups
 # EMAIL CONFIGURATIONS
 #
 
+# Email Alerting 1=yes, 0=no
+EMAIL_ALERT=0
 # Email log 1=yes, 0=no
 EMAIL_LOG=0
 
@@ -1310,7 +1312,7 @@ buildHeaders() {
 
 sendMail() {
     #close email message
-    if [[ "${EMAIL_LOG}" -eq 1 ]] ; then
+    if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1]] ; then
         #validate firewall has email port open for ESXi 5
         if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
             /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
@@ -1319,6 +1321,17 @@ sendMail() {
                 logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
             fi
         fi
+    else 
+        if [[ "${EXIT}" -ne 0 ]]; then
+            for i in ${EMAIL_TO}; do
+                buildHeaders ${i}
+                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+                if [[ $? -eq 1 ]] ; then
+                    logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+                fi
+            done
+        fi
+
 
         if [ "${EMAIL_ERRORS_TO}" != "" ] && [ "${LOG_STATUS}" != "OK" ] ; then
             if [ "${EMAIL_TO}" == "" ] ; then
