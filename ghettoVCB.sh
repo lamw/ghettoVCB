@@ -1162,10 +1162,11 @@ ghettoVCB() {
                         if [[ ${ENABLE_COMPRESSION} -eq 1 ]]; then
                             SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
                         else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
+                            SYMLINK_DST1="${RSYNC_LINK_DIR}"
                         fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                        SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        rm -f "${SYMLINK_SRC}"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1183,10 +1184,11 @@ ghettoVCB() {
                         if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
                             SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
                         else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
+                            SYMLINK_DST1="${RSYNC_LINK_DIR}"
                         fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                        SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        rm -f "${SYMLINK_SRC}"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
