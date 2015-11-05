@@ -768,6 +768,7 @@ ghettoVCB() {
     VM_OK=0
     VM_FAILED=0
     VMDK_FAILED=0
+    PROBLEM_VMS=
 
     dumpHostInfo
 
@@ -814,7 +815,7 @@ ghettoVCB() {
             powerOff "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                 logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
-                exit 1
+                PROBLEM_VMS="${PROBLEM_VMS} ${VM_NAME}"
             fi
         done
 
@@ -826,6 +827,14 @@ ghettoVCB() {
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
+                IGNORE_VM=1
+
+            fi
+        fi
+
+        if [[ "${IGNORE_VM}" -eq 0 ]] && [[ -n "${PROBLEM_VMS}" ]] ; then
+            if [[ "${PROBLEM_VMS/$VM_NAME}" != "$PROBLEM_VMS" ]] ; then
+                logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
             fi
         fi
@@ -854,7 +863,8 @@ ghettoVCB() {
 
         #ignore VM as it's in the exclusion list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
-            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"           
+            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"
+            VM_FAILED=1
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
@@ -1235,7 +1245,7 @@ ghettoVCB() {
     #fi
     unset IFS
 
-    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]]; then
+    if [[ ${#VM_STARTUP_ORDER} -gt 0 ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
         logger "debug" "VM Startup Order: ${VM_STARTUP_ORDER}\n"
         IFS=","
         for VM_NAME in ${VM_STARTUP_ORDER}; do
