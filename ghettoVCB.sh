@@ -333,6 +333,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
+    DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 }
 
 useDefaultConfigurations() {
@@ -354,6 +355,7 @@ useDefaultConfigurations() {
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
+    BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -504,6 +506,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_SHUTDOWN_ORDER = ${VM_SHUTDOWN_ORDER}"
     logger "info" "CONFIG - VM_STARTUP_ORDER = ${VM_STARTUP_ORDER}"
     logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
+    logger "info" "CONFIG - BACKUP_FILES_CHMOD = ${BACKUP_FILES_CHMOD}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
@@ -1190,6 +1193,11 @@ ghettoVCB() {
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
+                    if [[ "${BACKUP_FILES_CHMOD}" != "" ]]
+                    then
+                        chmod -R "${BACKUP_FILES_CHMOD}" "${VM_BACKUP_DIR}"
+                    fi
+                    
                     #storage info after backup
                     storageInfo "after"
                 fi
