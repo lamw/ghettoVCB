@@ -828,7 +828,7 @@ ghettoVCB() {
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
-
+                #VM_FAILED=0   #Excluded VM is NOT a failure. No need to set here, but listed for clarity
             fi
         fi
 
@@ -836,6 +836,8 @@ ghettoVCB() {
             if [[ "${PROBLEM_VMS/$VM_NAME}" != "$PROBLEM_VMS" ]] ; then
                 logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
+                #A VM ignored due to a problem, should be treated as a failure
+                VM_FAILED=1
             fi
         fi
 
@@ -861,10 +863,9 @@ ghettoVCB() {
             storageInfo "before"
         fi
 
-        #ignore VM as it's in the exclusion list
+        #ignore VM as it's in the exclusion list or was on problem list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
-            logger "debug" "Ignoring ${VM_NAME} for backup since its located in exclusion list\n"
-            VM_FAILED=1
+            logger "debug" "Ignoring ${VM_NAME} for backup since it is located in exclusion file or problem list\n"
         #checks to see if we can pull out the VM_ID
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
