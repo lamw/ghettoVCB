@@ -1323,23 +1323,29 @@ buildHeaders() {
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1]] ; then
+        SMTP=1
         #validate firewall has email port open for ESXi 5
         if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
             /sbin/esxcli network firewall ruleset rule list | grep "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
                 logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
+                SMTP=0
             fi
         fi
-    else 
-        if [[ "${EXIT}" -ne 0 ]]; then
-            for i in ${EMAIL_TO}; do
-                buildHeaders ${i}
-                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
-                if [[ $? -eq 1 ]] ; then
-                    logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
-                fi
-            done
+    fi
+    if [[ "${SMTP}" -eq 1 ]] ; then
+        
+        if [ "${EXIT}" -ne 0 ] && [ "${LOG_STATUS}" = "OK" ] ; then
+            LOG_STATUS="ERROR"
+        #    for i in ${EMAIL_TO}; do
+        #        buildHeaders ${i}
+        #        cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+        #        #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+        #        if [[ $? -eq 1 ]] ; then
+        #            logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
+        #        fi
+        #    done
         fi
 
 
@@ -1357,7 +1363,8 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+                cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+                #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
                 fi
@@ -1365,7 +1372,8 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            "${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
+            cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+            #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
             fi
