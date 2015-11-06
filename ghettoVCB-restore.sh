@@ -1,18 +1,18 @@
-# Author: William Lam
+# Author: William Lam 
 # 08/18/2009
 # http://www.virtuallyghetto.com/
 ##################################################################
 
 ###### DO NOT EDIT PASS THIS LINE ######
 
-LAST_MODIFIED_DATE=2013_01_11
-VERSION=0
+LAST_MODIFIED_DATE=2015_04_04
+VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 printUsage() {
     echo "###############################################################################"
     echo "#"
-    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x and 5.x"
+    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x, 5.x & 6.x"
     echo "# Author: William Lam"
     echo "# http://www.virtuallyghetto.com/"
     echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -85,18 +85,19 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x, 5.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x, 5.x!"
+        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
+        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
         exit
     fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
     case "${ESX_VERSION}" in
+        6.0.0)                VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x!"; exit 1; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
     esac
 
     TAR="tar"
@@ -159,11 +160,16 @@ ghettoVCBrestore() {
         fi
 
         #supports DIR or .TGZ from ghettoVCB.sh ONLY!
+        if [ ${VM_TO_RESTORE##*.} == 'gz' ]; then
+            logger "GZ found, extracting ..."
+            ${TAR} -xzf $VM_TO_RESTORE -C `dirname $VM_TO_RESTORE`
+            VM_TO_RESTORE=${VM_TO_RESTORE%.*}
+        fi
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
             VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
             VM_VMDK_DESCRS=$(ls "${VM_TO_RESTORE}" | grep ".vmdk" | grep -v "\-flat.vmdk")
-            VMDKS_FOUND=$(grep -iE '(scsi|ide)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
+            VMDKS_FOUND=$(grep -iE '(scsi|ide|sata)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
             VM_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
 
             # Default to original VM Display Name if custom name is not specified
@@ -206,7 +212,7 @@ ghettoVCBrestore() {
                         fi
                     fi
 
-                    if [ "${DISK}" != "" ]; then
+                    if [ "${DISK}" != "" ]; then 
                         SCSI_CONTROLLER=$(echo ${DISK} | awk -F '=' '{print $1}')
                         RENAME_DESTINATION_LINE_VMDK_DISK="${SCSI_CONTROLLER} = \"${VM_DISPLAY_NAME}-${NUM_OF_VMDKS}.vmdk\""
                         if [ -z "${VMDK_LIST_TO_MODIFY}" ]; then
@@ -220,7 +226,7 @@ ghettoVCBrestore() {
                 NUM_OF_VMDKS=$((NUM_OF_VMDKS+1))
             done
             IFS=${TMP_IFS}
-        else
+        else 
             logger "Support for .tgz not supported - \"${VM_TO_RESTORE}\" will not be backed up!"
             IS_TGZ=1
         fi
@@ -249,16 +255,16 @@ if [ ! "${IS_TGZ}" == "1" ]; then
         #validates the datastore to restore is valid and available
         if [ ! -d "${DATASTORE_TO_RESTORE_TO}" ]; then
             logger "ERROR: Unable to verify datastore location: \"${DATASTORE_TO_RESTORE_TO}\"! Ensure this exists"
-            #validates that all 4 required variables are defined before continuing
+            #validates that all 4 required variables are defined before continuing 
 
-        elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then
-            logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"
+        elif [[ -z "${VM_RESTORE_VMX}" ]] && [[ -z "${VM_VMDK_DESCRS}" ]] && [[ -z "${VM_DISPLAY_NAME}" ]] && [[ -z "${VM_RESTORE_FOLDER_NAME}" ]]; then			     	    
+            logger "ERROR: Unable to define all required variables: VM_RESTORE_VMX, VM_VMDK_DESCR and VM_DISPLAY_NAME!"	
             #validates that a directory with the same VM does not already exists
 
         elif [ -d "${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}" ]; then
-            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!"
+            logger "ERROR: Directory \"${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}\" looks like it already exists, please check contents and remove directory before trying to restore!" 
 
-        else
+        else		
             logger "################## Restoring VM: $VM_DISPLAY_NAME  #####################"
             if [ "${DEVEL_MODE}" == "2" ]; then
                 logger "==========> DEBUG MODE LEVEL 2 ENABLED <=========="
@@ -272,7 +278,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
 
             #create VM folder on datastore if it doesn't already exists
             logger "Creating VM directory: \"${VM_RESTORE_DIR}\" ..."
-            if [ ! "${DEVEL_MODE}" == "2" ]; then
+            if [ ! "${DEVEL_MODE}" == "2" ]; then	
                 mkdir -p "${VM_RESTORE_DIR}"
             fi
 
@@ -319,7 +325,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                     ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
 
                     if [ ${RESTORE_DISK_FORMAT} -eq 1 ]; then
-                        if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]]; then
+                        if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
                             ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d zeroedthick "${DESTINATION_VMDK}" 2>&1 | tee "${REDIRECT}"
                         else
                             ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" 2>&1 | tee "${REDIRECT}"
@@ -332,7 +338,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                         ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d thin "${DESTINATION_VMDK}" 2>&1 | tee "${REDIRECT}"
 
                     elif [ ${RESTORE_DISK_FORMAT} -eq 4 ]; then
-                        if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]]; then
+                        if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
                             ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d eagerzeroedthick "${DESTINATION_VMDK}" 2>&1 | tee "${REDIRECT}"
                         else
                             ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" 2>&1 | tee "${REDIRECT}"
@@ -346,7 +352,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                 fi
             done
             unset IFS
-            IFS="${OLD_IFS}"
+            IFS="${OLD_IFS}"				
 
             #register VM on ESX(i) host
             logger "Registering $VM_DISPLAY_NAME ..."
@@ -363,7 +369,7 @@ fi
 
 VMDK_LIST_TO_MODIFY=''
     done
-    unset IFS
+    unset IFS	
 
     endTimer
 }
@@ -377,7 +383,7 @@ VMDK_LIST_TO_MODIFY=''
 #read user input
 while getopts ":c:l:d:" ARGS; do
     case $ARGS in
-        c)
+        c) 
             CONFIG_FILE="${OPTARG}"
             ;;
         l)

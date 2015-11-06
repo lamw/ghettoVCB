@@ -1,6 +1,6 @@
 ghettoVCB
 ===
-This bundle is fork of lamw/ghettoVCB:
+This modified bundle is based on fork of lamw/ghettoVCB master branch.
 
   Author: William Lam
   Website: http://www.virtuallyghetto.com/
@@ -18,6 +18,8 @@ This bundle is fork of lamw/ghettoVCB:
 
 History of modifications:
 ===
+
+- 06.11.15  Merged modifications of lamw/ghettoVCB until 06.11.2015 into this bundle. Fixes and modifications listed below are included in this bundle.
 
 - 23.10.14  Fixed value displayed as "DST_DATASTORE_FREE" in debug mode. Fixed message when faulty backup is deleted to match situation where nothing is deleted (VM_BACKUP_ROTATION_COUNT). Do not continue backup of vm if backup of vmdk's of it has failed for some reason.
 
