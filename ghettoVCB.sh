@@ -1320,6 +1320,15 @@ buildHeaders() {
     cat "${EMAIL_LOG_OUTPUT}" >> "${EMAIL_LOG_CONTENT}"
 }
 
+sendDelay() {
+    c=0
+    while read L; do
+    	[ $c -lt 4 ] && sleep ${EMAIL_DELAY_INTERVAL}
+    	c=$((c+1))
+    	echo $L
+    done
+}
+
 sendMail() {
     #close email message
     if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1]] ; then
@@ -1340,7 +1349,7 @@ sendMail() {
             LOG_STATUS="ERROR"
         #    for i in ${EMAIL_TO}; do
         #        buildHeaders ${i}
-        #        cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+        #        cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
         #        #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
         #        if [[ $? -eq 1 ]] ; then
         #            logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
@@ -1363,7 +1372,7 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+                cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
                 #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
@@ -1372,7 +1381,7 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            cat "${EMAIL_LOG_CONTENT}" |while read L; do sleep "${EMAIL_DELAY_INTERVAL}"; echo $L; done | "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+            cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
             #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
