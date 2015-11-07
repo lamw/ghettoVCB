@@ -215,6 +215,7 @@ summary_logger() {
 
     if [[ "${SUMMARY_LOG}" != "" ]] && [[ "${SUMMARY_LOG}" != "0" ]]
     then
+        SUMMARY_END_TIME="$(date "+%Y/%m/%d %H:%M")"
         echo "${VMLOG}|${STATUS}|${SUMMARY_START_TIME}|${SUMMARY_END_TIME}" >> "${SUMMARY_LOG}"
     fi
     SUMMARY_START_TIME=""
@@ -958,6 +959,8 @@ ghettoVCB() {
                     logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                     VM_FAILED=1
                     VM_SUMMARY_STATUS="ERROR:Exiting snapshot found"
+                    #call summary_logger here due to the following "continue"
+                    summary_logger "${VM_NAME}" "${VM_SUMMARY_STATUS}"
                     continue
                 elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
@@ -1268,7 +1271,6 @@ ghettoVCB() {
                 fi
             fi
         fi
-        SUMMARY_END_TIME="$(date "+%Y/%m/%d %H:%M")"
         summary_logger "${VM_NAME}" "${VM_SUMMARY_STATUS}"
     done
     # UNTESTED CODE
