@@ -114,6 +114,9 @@ VM_STARTUP_ORDER=
 # RSYNC LINK 1=yes, 0 = no
 RSYNC_LINK=0
 
+# Summary log file name. 0 = no log, or a filename
+SUMMARY_LOG=0
+
 # DO NOT USE - UNTESTED CODE
 # Path to another location that should have backups rotated,
 # this is useful when your backups go to a temporary location
@@ -164,6 +167,7 @@ printUsage() {
         echo "   -l     File to output logging"
         echo "   -w     ghettoVCB work directory (default: /tmp/ghettoVCB.work)"
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
+        echo "   -s     Backup summary log filename"
         echo
         echo "(e.g.)"
         echo -e "\nBackup VMs stored in a list"
@@ -203,6 +207,18 @@ logger() {
             echo -ne "${TIME} -- ${LOG_TYPE}: ${MSG}\r\n" >> "${EMAIL_LOG_OUTPUT}"      
         fi
     fi
+}
+
+summary_logger() {
+    VMLOG="$1"
+    STATUS="$2"
+
+    if [[ "${SUMMARY_LOG}" != "" ]] && [[ "${SUMMARY_LOG}" != "0" ]]
+    then
+        echo "${VMLOG}|${STATUS}|${SUMMARY_START_TIME}|${SUMMARY_END_TIME}" >> "${SUMMARY_LOG}"
+    fi
+    SUMMARY_START_TIME=""
+    SUMMARY_END_TIME=""
 }
 
 sanityCheck() {
@@ -339,6 +355,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
+    DEFAULT_SUMMARY_LOG="${SUMMARY_LOG}"
 }
 
 useDefaultConfigurations() {
@@ -361,6 +378,7 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
+    SUMMARY_LOG="${DEFAULT_SUMMARY_LOG}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -524,6 +542,7 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
+    logger "info" "CONFIG - SUMMARY_LOG = ${SUMMARY_LOG}"
     logger "info" ""
 }
 
@@ -823,12 +842,15 @@ ghettoVCB() {
     fi
 
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
+        SUMMARY_START_TIME="$(date "+%Y/%m/%d %H:%M")"
+        VM_SUMMARY_STATUS="UNKNOWN"
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
             grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
                 #VM_FAILED=0   #Excluded VM is NOT a failure. No need to set here, but listed for clarity
+                VM_SUMMARY_STATUS="EXCLUDED"
             fi
         fi
 
@@ -838,6 +860,7 @@ ghettoVCB() {
                 IGNORE_VM=1
                 #A VM ignored due to a problem, should be treated as a failure
                 VM_FAILED=1
+                VM_SUMMARY_STATUS="ERROR:Ignored as a problem VM"
             fi
         fi
 
@@ -870,6 +893,7 @@ ghettoVCB() {
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
             VM_FAILED=1
+            VM_SUMMARY_STATUS="ERROR:Failed to locate and extract VM_ID"
 
         elif [[ "${LOG_LEVEL}" == "dryrun" ]] ; then
             logger "dryrun" "###############################################"
@@ -925,6 +949,7 @@ ghettoVCB() {
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT BE BACKED UP DUE TO EMPTY VMDK LIST!"
             fi
             logger "dryrun" "###############################################\n"
+            VM_SUMMARY_STATUS="DRYRUN:No action taken"
 
         #checks to see if the VM has any snapshots to start with
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
@@ -932,6 +957,7 @@ ghettoVCB() {
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                     VM_FAILED=1
+                    VM_SUMMARY_STATUS="ERROR:Exiting snapshot found"
                     continue
                 elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
@@ -998,6 +1024,7 @@ ghettoVCB() {
                 if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                     VM_FAILED=1
                     CONTINUE_TO_BACKUP=0
+                    VM_SUMMARY_STATUS="ERROR:Failed to power off VM"
                 fi
             fi
 
@@ -1022,6 +1049,7 @@ ghettoVCB() {
                             logger "info" "Snapshot timed out, failed to create snapshot: \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
                             SNAP_SUCCESS=0
                             echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
+                            VM_SUMMARY_STATUS="ERROR:Unable to create snapshot"
                             break
                         fi
 
@@ -1081,6 +1109,7 @@ ghettoVCB() {
                                 if  [[ "${FORMAT_OPTION}" == "UNKNOWN" ]] ; then
                                     logger "info" "ERROR: wrong DISK_BACKUP_FORMAT \"${DISK_BACKUP_FORMAT}\ specified for ${VM_NAME}"
                                     VM_VMDK_FAILED=1
+                                    VM_SUMMARY_STATUS="ERROR:Unknown disk format specified"
                                 else
                                     VMDK_OUTPUT=$(mktemp ${WORKDIR}/ghettovcb.XXXXXX)
                                     tail -f "${VMDK_OUTPUT}" &
@@ -1106,11 +1135,13 @@ ghettoVCB() {
                                     if [[ "${VMDK_EXIT_CODE}" != 0 ]] ; then
                                         logger "info" "ERROR: error in backing up of \"${SOURCE_VMDK}\" for ${VM_NAME}"
                                         VM_VMDK_FAILED=1
+                                        VM_SUMMARY_STATUS="ERROR:Error during VMDK backup"
                                     fi
                                 fi
                             else
                                 logger "info" "WARNING: A physical RDM \"${SOURCE_VMDK}\" was found for ${VM_NAME}, which will not be backed up"
                                 VM_VMDK_FAILED=1
+                                VM_SUMMARY_STATUS="ERROR:Physical RDM found"
                             fi
                         fi
                     done
@@ -1154,6 +1185,7 @@ ghettoVCB() {
                     else
                         logger "info" "Error in compressing ${VM_NAME}!\n"
                         COMPRESSED_OK=0
+                        VM_SUMMARY_STATUS="WARN:Error in compressing backup"
                     fi
                     rm -rf "${VM_BACKUP_DIR}"
                     checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
@@ -1169,14 +1201,17 @@ ghettoVCB() {
                     logger "info" "ERROR: Unable to backup ${VM_NAME} due to snapshot creation!\n"
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to snapshot creation" >> ${VM_BACKUP_DIR}/STATUS.error
                     VM_FAILED=1
+                    [[ "${VM_SUMMARY_STATUS}" = "UNKNOWN" ]] && VM_SUMMARY_STATUS="ERROR:Snapshot creation failed."
                 elif [[ ${VM_VMDK_FAILED} -ne 0 ]] ; then
                     logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" >> ${VM_BACKUP_DIR}/STATUS.error
                     VMDK_FAILED=1
+                    [[ "${VM_SUMMARY_STATUS}" = "UNKNOWN" ]] && VM_SUMMARY_STATUS="ERROR:VMDK backup failed."
                 elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
                     logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
                     VMDK_FAILED=1
+                    [[ "${VM_SUMMARY_STATUS}" = "UNKNOWN" ]] && VM_SUMMARY_STATUS="WARN:Independent VMDKs not backed up."
                     #experimental
                     #create symlink for the very last backup to support rsync functionality for additinal replication
                     if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
@@ -1196,6 +1231,9 @@ ghettoVCB() {
                 else
                     logger "info" "Successfully completed backup for ${VM_NAME}!\n"
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
+	
+                    [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -ne 1 ]] && VM_SUMMARY_STATUS="WARN:Backup compression failed."
+                    [[ "${VM_SUMMARY_STATUS}" = "UNKNOWN" ]] && VM_SUMMARY_STATUS="SUCCESS:Backup completed"
                     VM_OK=1
 
                     #experimental
@@ -1230,6 +1268,8 @@ ghettoVCB() {
                 fi
             fi
         fi
+        SUMMARY_END_TIME="$(date "+%Y/%m/%d %H:%M")"
+        summary_logger "${VM_NAME}" "${VM_SUMMARY_STATUS}"
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
@@ -1401,7 +1441,7 @@ if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
 fi
 
 #read user input
-while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:m:l:d:e:s:" ARGS; do
     case $ARGS in
         w)
             WORKDIR="${OPTARG}"
@@ -1434,6 +1474,9 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         d)
             LOG_LEVEL="${OPTARG}"
+            ;;
+        s)
+            SUMMARY_LOG="${OPTARG}"
             ;;
         :)
             echo "Option -${OPTARG} requires an argument."
