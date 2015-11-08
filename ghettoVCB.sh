@@ -816,6 +816,10 @@ ghettoVCB() {
         dumpVMConfigurations
     fi
 
+    #Initial SUMMARY_LOG setup
+    [[ "${SUMMARY_LOG != "0" ]] && [[ ! -d "`dirname ${SUMMARY_LOG`" ]] && mkdir -p "`dirname ${SUMMARY_LOG}`"
+    [[ -f "${SUMMARY_LOG}" ]] && rm -f "${SUMMARY_LOG}"
+    
     #dump out all virtual machines allowing for spaces now
     ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' > ${WORKDIR}/vms_list
 
