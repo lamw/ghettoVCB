@@ -962,7 +962,7 @@ ghettoVCB() {
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                     VM_FAILED=1
-                    VM_SUMMARY_STATUS="ERROR:Exiting snapshot found"
+                    VM_SUMMARY_STATUS="ERROR:Existing snapshot found"
                     #call summary_logger here due to the following "continue"
                     summary_logger "${VM_NAME}" "${VM_SUMMARY_STATUS}"
                     continue
