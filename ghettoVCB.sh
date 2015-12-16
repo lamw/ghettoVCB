@@ -1323,7 +1323,7 @@ buildHeaders() {
 
 sendMail() {
     #close email message
-    if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1]] ; then
+    if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1 ]] ; then
         SMTP=1
         #validate firewall has email port open for ESXi 5
         if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
