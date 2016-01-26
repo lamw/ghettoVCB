@@ -839,7 +839,7 @@ ghettoVCB() {
         fi
 
         if [[ "${IGNORE_VM}" -eq 0 ]] && [[ -n "${PROBLEM_VMS}" ]] ; then
-            if [[ "${PROBLEM_VMS/$VM_NAME}" != "$PROBLEM_VMS" ]] ; then
+            if [[ "${PROBLEM_VMS}/${VM_NAME}" != "${PROBLEM_VMS}" ]] ; then
                 logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
                 #A VM ignored due to a problem, should be treated as a failure
