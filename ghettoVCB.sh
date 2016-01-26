@@ -98,6 +98,12 @@ EMAIL_SERVER=auroa.primp-industries.com
 # Email SMTP server port
 EMAIL_SERVER_PORT=25
 
+# Email SMTP username
+EMAIL_USER_NAME=
+
+# Email SMTP password
+EMAIL_USER_PASSWORD=
+
 # Email FROM
 EMAIL_FROM=root@ghettoVCB
 
@@ -1303,6 +1309,12 @@ buildHeaders() {
     EMAIL_ADDRESS=$1
 
     echo -ne "HELO $(hostname -s)\r\n" > "${EMAIL_LOG_HEADER}"
+    if [[ ! -z "${EMAIL_USER_NAME}" ]]; then
+        echo -ne "EHLO $(hostname -s)\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "AUTH LOGIN\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "$(echo -n "${EMAIL_USER_NAME}" |openssl base64 2>&1 |tail -1)\r\n" >> "${EMAIL_LOG_HEADER}"
+        echo -ne "$(echo -n "${EMAIL_USER_PASSWORD}" |openssl base64 2>&1 |tail -1)\r\n" >> "${EMAIL_LOG_HEADER}"
+    fi
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
