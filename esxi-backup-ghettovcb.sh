@@ -94,7 +94,7 @@ echo "  Start: 	  `date +"%Y-%m-%d %H:%M:%S.%N"`";
 echo "==================================================================";
 echo "";
 
-# start quad.goha.lan
+# start target ESXi server
 echo "  `date +"%Y-%m-%d %H:%M:%S.%N"` - Power on backup system";
 echo "------------------------------------------------------------------";
 ipmitool -I lan -H ${TARGET_IPMI_IP} -U ${TARGET_IPMI_USR} -f ${TARGET_IPMI_PWD} power status || showErrorMessage 10
@@ -104,9 +104,9 @@ echo "";
 
 echo "  `date +"%Y-%m-%d %H:%M:%S.%N"` - Wait for ESXi and VM";
 echo "------------------------------------------------------------------";
-# wait for quad.goha.lan
+# wait for target ESXi server
 waitUntilStarted ${TARGET_ESX_IP} || showErrorMessage 20;
-# wait for omvesxibackup.goha.lan
+# wait for NAS server (VM hosted on target ESXi)
 waitUntilStarted ${TARGET_NAS_IP} || showErrorMessage 21;
 sleep 20
 echo "";
@@ -151,14 +151,14 @@ EOF
 [ "$?" -eq "0" ] || showErrorMessage 30;
 
 
-# shutdown omvesxibackup.goha.lan
+# shutdown NAS server (VM hosted on target ESXi)
 echo "  `date +"%Y-%m-%d %H:%M:%S.%N"` - Shutdown VM";
 echo "------------------------------------------------------------------";
 ssh ${SSH_OPT} -l ${TARGET_NAS_SSH_USR} -i ${TARGET_NAS_SSH_KEY} ${TARGET_NAS_IP} "shutdown -h -y now" || showErrorMessage 40;
 waitForShutdown ${TARGET_NAS_IP} || showErrorMessage 41;
 echo "";
 
-# shutdown quad.goha.lan
+# shutdown target ESXi
 echo "  `date +"%Y-%m-%d %H:%M:%S.%N"` - Shutdown ESXi";
 echo "------------------------------------------------------------------";
 ssh ${SSH_OPT} -l ${TARGET_ESX_SSH_USR} -i ${TARGET_ESX_SSH_KEY} ${TARGET_ESX_IP} "poweroff" || showErrorMessage 42;
