@@ -1314,7 +1314,7 @@ buildHeaders() {
     echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -en "\r\n" >> "${EMAIL_LOG_HEADER}"
 
-    echo -en ".\r\n" >> "${EMAIL_LOG_OUTPUT}"
+    echo -en "\r\n.\r\n" >> "${EMAIL_LOG_OUTPUT}"
     echo -en "QUIT\r\n" >> "${EMAIL_LOG_OUTPUT}"
 
     cat "${EMAIL_LOG_HEADER}" > "${EMAIL_LOG_CONTENT}"
