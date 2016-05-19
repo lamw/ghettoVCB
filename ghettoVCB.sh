@@ -428,9 +428,15 @@ getVMDKs() {
 
         #if valid, then we use the vmdk file
         if [[ $? -eq 0 ]]; then
-            #verify disk is not independent
-            grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1 
-            if [[ $? -eq 1 ]]; then
+            #verify disk is not independent (only if POWER_VM_DOWN_BEFORE_BACKUP is not set)
+            VMDK_INDEP=0
+            if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]]; then
+                grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1 
+                if [[ $? -eq 0 ]]; then
+                    VMDK_INDEP=1
+                fi
+            fi
+            if [[ ${VMDK_INDEP} -eq 0 ]] ; then
                 grep -i "^${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
 
                 #if we find the device type is of scsi-disk, then proceed
