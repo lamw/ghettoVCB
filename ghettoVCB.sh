@@ -436,7 +436,7 @@ getVMDKs() {
                     VMDK_INDEP=1
                 fi
             fi
-            if [[ ${VMDK_INDEP} -eq 0 ]] ; then
+            if [[ ${VMDK_INDEP} -eq 0 ]]; then
                 grep -i "^${SCSI_ID}.deviceType" "${VMX_PATH}" | grep -i "scsi-hardDisk" > /dev/null 2>&1
 
                 #if we find the device type is of scsi-disk, then proceed
