@@ -93,7 +93,7 @@ sanityCheck() {
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
     case "${ESX_VERSION}" in
-        6.0.0)                VER=6; break;;
+        6.0.0|6.5.0)          VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
