@@ -1105,6 +1105,9 @@ ghettoVCB() {
 
                                     if [[ "${VMDK_EXIT_CODE}" != 0 ]] ; then
                                         logger "info" "ERROR: error in backing up of \"${SOURCE_VMDK}\" for ${VM_NAME}"
+					# clean up partial backup
+                                        logger "info" "Deleting partial backup: ${VM_BACKUP_DIR}/${DS_UUID}"
+                                        rm -rf "${VM_BACKUP_DIR}/${DS_UUID}"
                                         VM_VMDK_FAILED=1
                                     fi
                                 fi
