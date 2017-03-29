@@ -413,7 +413,7 @@ findVMDK() {
 
 getVMDKs() {
     #get all VMDKs listed in .vmx file
-    VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
+    VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
 
     VMDKS=
     INDEP_VMDKS=
