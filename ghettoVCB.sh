@@ -811,7 +811,7 @@ ghettoVCB() {
         IFS2="${IFS}"
         IFS=","
         for VM_NAME in ${VM_SHUTDOWN_ORDER}; do
-            VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+            VM_ID=$(grep -e "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
             powerOff "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                 logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
@@ -841,7 +841,7 @@ ghettoVCB() {
             fi
         fi
 
-        VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+        VM_ID=$(grep -e "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
         #ensure default value if one is not selected or variable is null
         if [[ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]] ; then
@@ -853,8 +853,8 @@ ghettoVCB() {
             dumpVMConfigurations
         fi
 
-        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
-        VMX_CONF=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
+        VMFS_VOLUME=$(grep -e "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
+        VMX_CONF=$(grep -e "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
         VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
         VMX_DIR=$(dirname "${VMX_PATH}")
 
@@ -1250,7 +1250,7 @@ ghettoVCB() {
         logger "debug" "VM Startup Order: ${VM_STARTUP_ORDER}\n"
         IFS=","
         for VM_NAME in ${VM_STARTUP_ORDER}; do
-            VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+            VM_ID=$(grep -e "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
             powerOn "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_ON_EC} -eq 1 ]]; then
                 logger "info" "Unable to detect fully powered on VM ${VM_NAME}\n"
