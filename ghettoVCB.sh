@@ -504,6 +504,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - ITER_TO_WAIT_SHUTDOWN = ${ITER_TO_WAIT_SHUTDOWN}"
     logger "info" "CONFIG - POWER_DOWN_TIMEOUT = ${POWER_DOWN_TIMEOUT}"
     logger "info" "CONFIG - SNAPSHOT_TIMEOUT = ${SNAPSHOT_TIMEOUT}"
+    logger "info" "CONFIG - ENABLE_COMPRESSION = ${ENABLE_COMPRESSION}"
     logger "info" "CONFIG - LOG_LEVEL = ${LOG_LEVEL}"
     logger "info" "CONFIG - BACKUP_LOG_OUTPUT = ${LOG_OUTPUT}"
     logger "info" "CONFIG - ENABLE_COMPRESSION = ${ENABLE_COMPRESSION}"
