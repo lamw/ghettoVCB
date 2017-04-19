@@ -322,6 +322,7 @@ endTimer() {
 captureDefaultConfigurations() {
     DEFAULT_VM_BACKUP_VOLUME="${VM_BACKUP_VOLUME}"
     DEFAULT_DISK_BACKUP_FORMAT="${DISK_BACKUP_FORMAT}"
+    DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
     DEFAULT_VM_BACKUP_ROTATION_COUNT="${VM_BACKUP_ROTATION_COUNT}"
     DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP="${POWER_VM_DOWN_BEFORE_BACKUP}"
     DEFAULT_ENABLE_HARD_POWER_OFF="${ENABLE_HARD_POWER_OFF}"
@@ -344,6 +345,7 @@ captureDefaultConfigurations() {
 useDefaultConfigurations() {
     VM_BACKUP_VOLUME="${DEFAULT_VM_BACKUP_VOLUME}"
     DISK_BACKUP_FORMAT="${DEFAULT_DISK_BACKUP_FORMAT}"
+    BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
     VM_BACKUP_ROTATION_COUNT="${DEFAULT_VM_BACKUP_ROTATION_COUNT}"
     POWER_VM_DOWN_BEFORE_BACKUP="${DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP}"
     ENABLE_HARD_POWER_OFF="${DEFAULT_ENABLE_HARD_POWER_OFF}"
@@ -499,6 +501,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_BACKUP_ROTATION_COUNT = ${VM_BACKUP_ROTATION_COUNT}"
     logger "info" "CONFIG - VM_BACKUP_DIR_NAMING_CONVENTION = ${VM_BACKUP_DIR_NAMING_CONVENTION}"
     logger "info" "CONFIG - DISK_BACKUP_FORMAT = ${DISK_BACKUP_FORMAT}"
+    logger "info" "CONFIG - BACKUP_FILES_CHMOD = ${BACKUP_FILES_CHMOD}"
     logger "info" "CONFIG - POWER_VM_DOWN_BEFORE_BACKUP = ${POWER_VM_DOWN_BEFORE_BACKUP}"
     logger "info" "CONFIG - ENABLE_HARD_POWER_OFF = ${ENABLE_HARD_POWER_OFF}"
     logger "info" "CONFIG - ITER_TO_WAIT_SHUTDOWN = ${ITER_TO_WAIT_SHUTDOWN}"
@@ -1184,10 +1187,11 @@ ghettoVCB() {
                         if [[ ${ENABLE_COMPRESSION} -eq 1 ]]; then
                             SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
                         else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
+                            SYMLINK_DST1="${RSYNC_LINK_DIR}"
                         fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                        SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        rm -f "${SYMLINK_SRC}"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
@@ -1205,10 +1209,11 @@ ghettoVCB() {
                         if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
                             SYMLINK_DST1="${RSYNC_LINK_DIR}.gz"
                         else
-                            SYMLINK_DST1=${RSYNC_LINK_DIR}
+                            SYMLINK_DST1="${RSYNC_LINK_DIR}"
                         fi
-                        SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
+                        SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
+                        rm -f "${SYMLINK_SRC}"
                         ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
