@@ -7,7 +7,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2016_11_20
+LAST_MODIFIED_DATE=2017_11_20
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -293,7 +293,9 @@ sanityCheck() {
     [[ ! -f /bin/tar ]] && TAR="busybox tar"
 
     # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
-    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 || "${VER}" == "6" ]]; then
+    # For some reason bash on ESXi 6.5 requires the < sign to be protected to avoid it being
+    # interpreted as a redirection.
+    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" && "${VER}" -ge 5 && "${ESX_VERSION}" \< "6.5.0" ]]; then
         esxcli system module list | grep multiextent > /dev/null 2>&1
 	if [ $? -eq 1 ]; then
             logger "info" "multiextent VMkernel module is not loaded & is required for 2gbsparse, enabling ..."
