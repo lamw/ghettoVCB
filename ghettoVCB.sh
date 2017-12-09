@@ -126,6 +126,10 @@ ADDITIONAL_ROTATION_PATH=
 # SLOW NAS CONFIGURATIONS - By J. Steven Vitale
 ##########################################################
 
+# Enable use of the NFS IO HACK for all NAS commands 1=yes, 0=no
+# 0 uses the script in it's original state.  
+ENABLE_NFS_IO_HACK=1
+
 ##################################################################
 #                   End User Definable Parameters
 ##################################################################
