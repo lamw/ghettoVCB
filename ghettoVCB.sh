@@ -130,6 +130,10 @@ ADDITIONAL_ROTATION_PATH=
 # 0 uses the script in it's original state.  
 ENABLE_NFS_IO_HACK=1
 
+# Set this value to determine how many times the script tries to work arround I/O errors each time the NAS slows down.
+# The script will skip past this loop if the NAS is responsive.
+NFS_IO_HACK_LOOP_MAX=10
+
 ##################################################################
 #                   End User Definable Parameters
 ##################################################################
