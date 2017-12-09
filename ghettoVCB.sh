@@ -562,6 +562,36 @@ dumpVMConfigurations() {
     logger "info" ""
 }
 
+# Added the function below to allow reuse of the basics of the original hack in more places in the script.
+# Rewrote the code to reduce the calls to the NAS when it slows.  Why make a bad situation worse with extra calls? 
+NfsIoHack() {
+    # NFS I/O error handling hack                                                                                                                                         
+    NFS_IO_HACK_COUNTER=0                                                                                                                                            
+    NFS_IO_HACK_STATUS=0                                                                                                                                             
+    NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"                                                                                                            
+    
+    while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do                                                    
+       touch "${NFS_IO_HACK_FILECHECK}"                                                                          
+       if [[ $? -ne 0 ]] ; then
+           sleep "${NFS_IO_HACK_SLEEP_TIMER}"                                                                                                                           
+           NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))                                                                                                               
+       fi
+       [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1                                                                                                                       
+    done
+    
+    NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))                                                                                         
+                                                                                                                                                                                 
+    rm -rf "${NFS_IO_HACK_FILECHECK}"                                                                                                                                
+                                                                                                                                                                                 
+    if [[ "${NFS_IO_HACK_SLEEP_TIME}" -ne 0 ]] ; then
+        if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then                                                                                                                    
+            logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"                                                                         
+        else                                                                                                                                                             
+            logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"                                                             
+        fi
+    fi                                                                                                                                                               
+}
+
 indexedRotate() {
     local BACKUP_DIR_PATH=$1
     local VM_TO_SEARCH_FOR=$2
