@@ -592,6 +592,16 @@ NfsIoHack() {
     fi                                                                                                                                                               
 }
 
+# Converted the section of code below to a function to be able to call it when a failed backup occurs.
+Get_Final_Status_Sendemail() {
+    getFinalStatus                                                                                                                                                                
+                                                                                                                                                                                      
+    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"                                                     
+    logger "info" "============================== ghettoVCB LOG END ================================\n"                 
+                                                                                                                                                                                                                                                                                                                                                                                
+    sendMail 
+}
+
 indexedRotate() {
     local BACKUP_DIR_PATH=$1
     local VM_TO_SEARCH_FOR=$2
