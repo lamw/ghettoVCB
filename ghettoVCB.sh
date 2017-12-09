@@ -697,26 +697,34 @@ checkVMBackupRotation() {
             logger "debug" "Removing $BACKUP_DIR_PATH/$i"
             rm -rf "$BACKUP_DIR_PATH/$i"
 
+			# Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
+            # Added variables to the code to control the timers and loops.
+            # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
+            if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
+                NfsIoHack
+            else
             #NFS I/O error handling hack
             if [[ $? -ne 0 ]] ; then
                 NFS_IO_HACK_COUNTER=0
                 NFS_IO_HACK_STATUS=0
                 NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
 
-                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
-                    sleep 1
+                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+                    sleep "${NFS_IO_HACK_SLEEP_TIMER}"
                     NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
                     touch "${NFS_IO_HACK_FILECHECK}"
 
                     [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
                 done
 
+				NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+				
                 rm -rf "${NFS_IO_HACK_FILECHECK}"
 
                 if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-                    logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds to work around NFS I/O error"
+                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
                 else
-                    logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds but failed work around for NFS I/O error"
+                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
                 fi
             fi
         fi
