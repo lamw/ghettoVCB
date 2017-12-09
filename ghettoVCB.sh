@@ -134,6 +134,13 @@ ENABLE_NFS_IO_HACK=1
 # The script will skip past this loop if the NAS is responsive.
 NFS_IO_HACK_LOOP_MAX=10
 
+# ONLY USE THIS WITH EXTREMELY SLOW NAS DEVICES!
+# This is a Brute-force/Mandatory delay added on top of any delay imposed by the NFS_IO_Hack.
+# Set a delay timer to allow the NFS server to catch up to GhettoVCB's stream, when the NAS isn't responding timely.
+# This acts like a cooldown period for the NAS.
+# The value is measured in seconds.  This causes the script to pause between each VM.
+NFS_BACKUP_DELAY=300
+
 ##################################################################
 #                   End User Definable Parameters
 ##################################################################
