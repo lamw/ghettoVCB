@@ -1489,11 +1489,17 @@ sendMail() {
     fi
 }
 
-####################
-#                  #
-# Start of Script  #
-#                  #
-####################
+#########################
+#                       #
+# Start of Main Script  #
+#                       #
+#########################
+
+# If the NFS_IO_HACK is disabled, this restores the original script settings.                                     
+if [[ "${ENABLE_NFS_IO_HACK}" -eq 0 ]]; then                                                                       
+    NFS_IO_HACK_LOOP_MAX=60                                                                                      
+    NFS_IO_HACK_SLEEP_TIMER=1                                                                                    
+fi
 
 USE_VM_CONF=0
 USE_GLOBAL_CONF=0
@@ -1593,17 +1599,13 @@ if mkdir "${WORKDIR}"; then
 
     ghettoVCB ${VM_FILE}
 
-    getFinalStatus
-
-    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
-    logger "info" "============================== ghettoVCB LOG END ================================\n"
-
-    sendMail
+    Get_Final_Status_Sendemail
 
     # practically redundant
     [[ "${WORKDIR_DEBUG}" -eq 0 ]] && rm -rf "${WORKDIR}"
     exit $EXIT
 else
     logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
+	Get_Final_Status_Sendemail
     exit 1
 fi
