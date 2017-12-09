@@ -617,6 +617,10 @@ indexedRotate() {
         if [[ -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
                 rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then                                                                                                             
+                    NfsIoHack                                                                                                                                                     
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
                 else
@@ -624,6 +628,10 @@ indexedRotate() {
                 fi
             else
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then                                                                                                                                          
+                   NfsIoHack                                                                                                                                                     
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
                 else
@@ -634,6 +642,10 @@ indexedRotate() {
         if [[ -d ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
                 rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then                                                                                                                                          
+                   NfsIoHack                                                                                                                                                     
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 else
@@ -641,6 +653,10 @@ indexedRotate() {
                 fi
             else
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then                                                                                                                                          
+                   NfsIoHack                                                                                                                                                     
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
                 else
