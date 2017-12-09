@@ -125,21 +125,26 @@ ADDITIONAL_ROTATION_PATH=
 ##########################################################                                                     
 # SLOW NAS CONFIGURATIONS - By J. Steven Vitale
 ##########################################################
+#This Feature was added to the program to provide a fix for slow NAS devices like the Drobo and Syntology devices.
+#This Feature enables the device to perform tasks (Deletes/data save for large files) and has the script wait for the NAS to catchup.
 
 # Enable use of the NFS IO HACK for all NAS commands 1=yes, 0=no
 # 0 uses the script in it's original state.  
-ENABLE_NFS_IO_HACK=1
+ENABLE_NFS_IO_HACK=0
 
 # Set this value to determine how many times the script tries to work arround I/O errors each time the NAS slows down.
 # The script will skip past this loop if the NAS is responsive.
 NFS_IO_HACK_LOOP_MAX=10
+
+# This value determines the  number of seconds to sleep, when the NFS device is unresponsive.
+NFS_IO_HACK_SLEEP_TIMER=60
 
 # ONLY USE THIS WITH EXTREMELY SLOW NAS DEVICES!
 # This is a Brute-force/Mandatory delay added on top of any delay imposed by the NFS_IO_Hack.
 # Set a delay timer to allow the NFS server to catch up to GhettoVCB's stream, when the NAS isn't responding timely.
 # This acts like a cooldown period for the NAS.
 # The value is measured in seconds.  This causes the script to pause between each VM.
-NFS_BACKUP_DELAY=300
+NFS_BACKUP_DELAY=0
 
 ##################################################################
 #                   End User Definable Parameters
