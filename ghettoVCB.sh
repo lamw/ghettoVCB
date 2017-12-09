@@ -1329,6 +1329,13 @@ ghettoVCB() {
                 fi
             fi
         fi
+		
+		# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
+		# Added the Brute-force delay in case it is needed.
+		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+			NfsIoHack                                                                                                                                                      
+			sleep "${NFS_BACKUP_DELAY}" 
+		fi 
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
