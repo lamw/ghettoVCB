@@ -704,28 +704,29 @@ checkVMBackupRotation() {
             if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
                 NfsIoHack
             else
-            #NFS I/O error handling hack
-            if [[ $? -ne 0 ]] ; then
-                NFS_IO_HACK_COUNTER=0
-                NFS_IO_HACK_STATUS=0
-                NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+				#NFS I/O error handling hack
+				if [[ $? -ne 0 ]] ; then
+					NFS_IO_HACK_COUNTER=0
+					NFS_IO_HACK_STATUS=0
+					NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
 
-                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
-                    sleep "${NFS_IO_HACK_SLEEP_TIMER}"
-                    NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-                    touch "${NFS_IO_HACK_FILECHECK}"
+					while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+						sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+						NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+						touch "${NFS_IO_HACK_FILECHECK}"
 
-                    [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
-                done
+						[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+					done
 
-				NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+					NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
 				
-                rm -rf "${NFS_IO_HACK_FILECHECK}"
+					rm -rf "${NFS_IO_HACK_FILECHECK}"
 
-                if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
-                else
-                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+					if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+					else
+						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+					fi
                 fi
             fi
         fi
