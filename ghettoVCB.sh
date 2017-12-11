@@ -1515,6 +1515,11 @@ if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
     exit 1
 fi
 
+#Quick sanity check for the VM_BACKUP_ROTATION_COUNT configuration setting.
+if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1]]; then
+	VM_BACKUP_ROTATION_COUNT=1
+fi
+
 #read user input
 while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     case $ARGS in
