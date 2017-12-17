@@ -560,7 +560,13 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-    logger "info" ""
+	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
+		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
+		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}"
+	fi
+    logger "\n"
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
@@ -1518,6 +1524,11 @@ fi
 #Quick sanity check for the VM_BACKUP_ROTATION_COUNT configuration setting.
 if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1]]; then
 	VM_BACKUP_ROTATION_COUNT=1
+fi
+
+#Sanity check for full qualified email and adjust EMAIL_FROM to be hostname@domain.com if username is missing.
+if [[ "${EMAIL_FROM%%@*}" == "" ]] ; then
+    EMAIL_FROM="`hostname -s`$EMAIL_FROM"
 fi
 
 #read user input
