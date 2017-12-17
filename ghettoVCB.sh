@@ -1520,6 +1520,11 @@ if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1]]; then
 	VM_BACKUP_ROTATION_COUNT=1
 fi
 
+#Sanity check for full qualified email and adjust EMAIL_FROM to be hostname@domain.com if username is missing.
+if [[ "${EMAIL_FROM%%@*}" == "" ]] ; then
+    EMAIL_FROM="`hostname -s`$EMAIL_FROM"
+fi
+
 #read user input
 while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
     case $ARGS in
