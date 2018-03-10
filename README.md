@@ -1,11 +1,12 @@
-# ghettoVCB
+# da-ghettoVCB
 
 ### Description
 
 The ghettoVCB script performs backups of virtual machines residing on ESX(i) 3.x, 4.x, 5.x & 6.x servers using methodology similar to VMware's VCB tool. The script takes snapshots of live running virtual machines, backs up the  master VMDK(s) and then upon completion, deletes the snapshot until the next backup. The only caveat is that it utilizes resources available to the ESXi Shell running the backups as opposed to following the traditional method of offloading virtual machine backups through a VCB proxy.
 
 ### why fork
-da-ghettoVCB is forked from lamw/ghettoVCB 
+da-ghettoVCB is forked from lamw/ghettoVCB
+
 The purpose of this fork is to add Datamind AS setup scripts for cron and e-mail, these automate instructions provided in the parent project documentation at https://communities.vmware.com/docs/DOC-8760
 
 This setup is rigged for a typical Datamind AS use case of scheduling backup of lists of VMs running on each host each day, workday, weekly.  We also want e-mail logs at first, and when proper production routine is established, failure alerts by e-mail only.
@@ -18,8 +19,8 @@ When running provided setup scripts, you need not change to the installation dir
 
 
 ### setup
-Clone the github repo onto your admin computer using git or download and extract the zip archive 
-<code>git clone https://github.com/Datamind-dot-no/da-ghettoVCB.git</code>
+Clone the github repo onto your admin computer using git or download and extract the zip archive
+```git clone https://github.com/Datamind-dot-no/da-ghettoVCB.git```
 
 copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host using CyberDuck, scp, or WinSCp, /vmfs/volumes/datastore1/scripts/backup/ghettoVCB/ works well for us
 
