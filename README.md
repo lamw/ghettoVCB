@@ -19,27 +19,27 @@ When running provided setup scripts, you need not change to the installation dir
 
 
 ### setup
-Clone the github repo onto your admin computer using git or download and extract the zip archive
+Clone the github repo onto your admin computer using git or download and extract the zip archive  
 ```git clone https://github.com/Datamind-dot-no/da-ghettoVCB.git```
 
-copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host using CyberDuck, scp, or WinSCp, /vmfs/volumes/datastore1/scripts/backup/ghettoVCB/ works well for us
+Copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host.  We recommend using CyberDuck, scp, or WinSCp.  We like to go with the default name of the first persistant datastore as in   ```/vmfs/volumes/**datastore1**/scripts/backup/ghettoVCB/```
 
-login to vshpere ESXi shell, and change directory to new ghettoVCB folder, or prefix your install path in the following commands
+Login to vshpere ESXi shell, and change directory to new ghettoVCB folder, or prefix the folowing commands with your install path
 
-set permission to enable execution of our scripts in vSphere host ESXi shell
-<code>chmod +x *.sh</code>
+Set permission to enable execution of our scripts in vSphere host ESXi shell  
+```chmod +x *.sh```
 
-Copy the Crontab template to your settings file
-<code>cp ghettoVCB-backup-crontab-entries.template.txt ghettoVCB-backup-crontab-entries.txt</code>
+Copy the Crontab template to your settings file  
+```cp ghettoVCB-backup-crontab-entries.template.txt ghettoVCB-backup-crontab-entries.txt```
 
-Add a the name of a VM to test with to the daily backup list
-<code>vi ghettoVCB-backup-list-cron-daily.txt</code>
+Add a the name of a VM to test with to the daily backup list  
+```vi ghettoVCB-backup-list-cron-daily.txt```
 
-check desired scheduling time, remember to account for your timezone offset as vSphere runs on GMT.
-<code>vi ghettoVCB-backup-crontab-entries.txt</code>
+Check desired scheduling time, remember to account for your timezone offset as vSphere runs on GMT.  
+```vi ghettoVCB-backup-crontab-entries.txt```
 
-run the setup script
-./ghettoVCB-backup-crontab-setup.sh
+run the setup script  
+```./ghettoVCB-backup-crontab-setup.sh```
 
 
 ### Additional Documentation & Resources
