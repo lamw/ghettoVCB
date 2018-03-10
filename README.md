@@ -22,7 +22,7 @@ When running provided setup scripts, you need not change to the installation dir
 Clone the github repo onto your admin computer using git or download and extract the zip archive  
 ```git clone https://github.com/Datamind-dot-no/da-ghettoVCB.git```
 
-Copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host.  We recommend using CyberDuck, scp, or WinSCp.  We like to go with the default name of the first persistant datastore as in   ```/vmfs/volumes/**datastore1**/scripts/backup/ghettoVCB/```
+Copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host.  We recommend using CyberDuck, scp, or WinSCp.  We like to go with the default name of the first persistant datastore as in   /vmfs/volumes/**datastore1**/scripts/backup/ghettoVCB/
 
 Login to vshpere ESXi shell, and change directory to new ghettoVCB folder, or prefix the folowing commands with your install path
 
