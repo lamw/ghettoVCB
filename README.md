@@ -29,14 +29,21 @@ Login to vshpere ESXi shell, and change directory to new ghettoVCB folder, or pr
 Set permission to enable execution of our scripts in vSphere host ESXi shell  
 ```chmod +x *.sh```
 
+Edit the main settings file, setup the backup location and the email parameters as recommended by the comments in the file  
+vi ```ghettoVCB.conf```
+
+Add a the name of a VM to test with to the daily backup list, preferably one using little storage space  
+```vi ghettoVCB-backup-list-cron-daily.txt```
+
 Copy the Crontab template to your settings file  
 ```cp ghettoVCB-backup-crontab-entries.template.txt ghettoVCB-backup-crontab-entries.txt```
 
-Add a the name of a VM to test with to the daily backup list  
-```vi ghettoVCB-backup-list-cron-daily.txt```
-
 Check desired scheduling time, remember to account for your timezone offset as vSphere runs on GMT.  
 ```vi ghettoVCB-backup-crontab-entries.txt```
+
+test your parameters by manually running crontab command, remember to **add the -dryrun** parameter at the end
+```./ghettoVCB-backup-wrap.sh list-cron-daily.txt --dryrun```
+
 
 run the setup script  
 ```./ghettoVCB-backup-crontab-setup.sh```
