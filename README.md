@@ -22,7 +22,7 @@ When running provided setup scripts, you need not change to the installation dir
 Clone the github repo onto your admin computer using git or download and extract the zip archive  
 ```git clone https://github.com/Datamind-dot-no/da-ghettoVCB.git```
 
-Copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host.  We recommend using CyberDuck, scp, or WinSCp.  We like to go with the default name of the first persistant datastore as in   /vmfs/volumes/**datastore1**/scripts/backup/ghettoVCB/
+Copy the contents of the ghettoVCB folder onto persistant storage location of your choice on the vShpere host.  We recommend using CyberDuck, scp, or WinSCp.  We like to go with the default name of the first persistant datastore as in   /vmfs/volumes/**datastore1**/scripts/backup/da-ghettoVCB/
 
 Login to vshpere ESXi shell, and change directory to new ghettoVCB folder, or prefix the folowing commands with your install path
 
@@ -43,6 +43,9 @@ Check desired scheduling time, remember to account for your timezone offset as v
 
 test your parameters by manually running crontab command, remember to **add the -dryrun** parameter at the end
 ```./ghettoVCB-backup-wrap.sh list-cron-daily.txt --dryrun```
+
+now you can test the scheduling by adding the previous command as a cron job with a one-off date (this year).  You need to add an absolute path. Put this in your ```ghettoVCB-backup-crontab-entries.txt```. It will then look like this
+
 
 
 run the setup script  
