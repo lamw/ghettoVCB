@@ -22,7 +22,7 @@
 
 
 # Where we want the logs sent
-LOGDIR=/vmfs/volumes/datastore1/log
+LOGDIR=/vmfs/volumes/datastore1/log/da-ghettoVCB
 
 ##
 ## No need to edit anything below here 

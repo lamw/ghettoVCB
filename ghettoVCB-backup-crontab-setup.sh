@@ -11,7 +11,7 @@
 # will hardcode the SCRIPTPATH in the crontab-init script that is called from init.d
 
 # Where we want the logs sent
-LOGDIR=/vmfs/volumes/datastore1/log
+LOGDIR=/vmfs/volumes/datastore1/log/da-ghettoVCB
 
 # which file contains the custom ghettoVCB cronjobs
 GHETTOCRONFILE=ghettoVCB-backup-crontab-entries.txt
