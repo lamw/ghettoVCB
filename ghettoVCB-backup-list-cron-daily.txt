@@ -1,6 +1,0 @@
-DcFileserverWindows
-System38_PCC_CIP3_Win10_01
-VmBackupNFSlinux01
-OnTopLinux01
-OnTopSverigeLinux01
-MonitoringCheck_MK_linux01

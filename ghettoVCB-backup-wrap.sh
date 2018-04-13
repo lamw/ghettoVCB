@@ -1,4 +1,9 @@
-# 
+# Author: Mart Verburg
+# http://datamind.no
+# Created Date: 2015-04-14
+# published on GitHub.com in Datamind fork Datamind-dot-no/da-ghettoVCB 
+# forked from lamw/ghettoVCB
+##
 # ghettoVCB-backup-wrap.sh
 # - a wrapper for more comprehensible invocations from cron job or cli
 #
@@ -8,9 +13,8 @@
 # Remaining arguments are passed to the regular main GhettoVCB.sh script
 #
 
-
 # Where we want the logs sent
-LOGDIR=/vmfs/volumes/datastore1/log
+LOGDIR=/vmfs/volumes/datastore1/log/da-ghettoVCB
 
 ##
 ## No need to edit anything below here 
