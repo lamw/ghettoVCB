@@ -2,12 +2,16 @@
 # Created Date: 11/17/2008
 # http://www.virtuallyghetto.com/
 # http://communities.vmware.com/docs/DOC-8760
+# forked on GitHub.com from lamw/ghettoVCB to Datamind-dot-no/da-ghettoVCB
+# http://datamind.no
+# additions by Mart Verburg for busybox init.d bootstrap script for boot 
+# persistance, and for cron setup
 
 ##################################################################
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2017_12_09
+LAST_MODIFIED_DATE=2018_03_08
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -247,7 +251,6 @@ sanityCheck() {
     LOG_TO_STDOUT=1
 
     #if no logfile then provide default logfile in /tmp
-    
     if [[ -z "${LOG_OUTPUT}" ]] ; then
         LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
@@ -1014,7 +1017,7 @@ ghettoVCB() {
 
             logger "dryrun" "TOTAL_VM_SIZE_TO_BACKUP: ${TOTAL_VM_SIZE} GB"
             if [[ ${HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
-                logger "dryrun" "Snapshots can not be taken for indepdenent disks!"
+                logger "dryrun" "Snapshots can not be taken for independent disks!"
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
@@ -1283,7 +1286,13 @@ ghettoVCB() {
                 elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
                     logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
-                    VMDK_FAILED=1
+                    ##
+                    ## Datamind "feature": do not report warning for independant VMDK failing to back up for 
+                    ##   monitoring sake, it is logged anyway, and reported in the -d dryrun session you should do when setting up anyways
+                    ## So just commenting out the VMDK_FAILED here will suppress the warning in getFinalStatus()
+                    #VMDK_FAILED=1
+                    ##
+                    ##
                     #experimental
                     #create symlink for the very last backup to support rsync functionality for additinal replication
                     if [[ "${RSYNC_LINK}" -eq 1 ]] ; then

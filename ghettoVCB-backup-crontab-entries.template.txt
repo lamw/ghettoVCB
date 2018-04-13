@@ -1,0 +1,7 @@
+## template for scheduling ghettoVCB backup lists with cron.  Remember cron runs on GMT 
+## timezone, check your offset first, e.g. by running date
+## Copy this file to ghettoVCB-backup-crontab-entries.txt before running ghettoVCB-backup-crontab-init.sh
+#min hour day mon dow     command
+0   17    *   *   *       /vmfs/volumes/datastore1/scripts/backup/ghettoVCB/ghettoVCB-backup-wrap.sh list-cron-daily.txt  > /dev/null
+0   20    *   *   mon-fri /vmfs/volumes/datastore1/scripts/backup/ghettoVCB/ghettoVCB-backup-wrap.sh list-cron-weekdays.txt  > /dev/null
+0   17    *   *   fri     /vmfs/volumes/datastore1/scripts/backup/ghettoVCB/ghettoVCB-backup-wrap.sh list-cron-weekly.txt  > /dev/null

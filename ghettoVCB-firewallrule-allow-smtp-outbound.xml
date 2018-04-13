@@ -1,0 +1,13 @@
+<ConfigRoot>
+  <service>
+    <id>email</id>
+    <rule id="0000">
+      <direction>outbound</direction>
+      <protocol>tcp</protocol>
+      <porttype>dst</porttype>
+      <port>25</port>
+    </rule>
+    <enabled>true</enabled>
+    <required>false</required>
+  </service>
+</ConfigRoot>
