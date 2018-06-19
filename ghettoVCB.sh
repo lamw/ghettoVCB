@@ -1295,7 +1295,7 @@ ghettoVCB() {
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                        ln -sfn "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
                     #storage info after backup
@@ -1316,7 +1316,7 @@ ghettoVCB() {
                         fi
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                        ln -sfn "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
                     if [[ "${BACKUP_FILES_CHMOD}" != "" ]]
