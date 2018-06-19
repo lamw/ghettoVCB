@@ -7,7 +7,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2016_11_20
+LAST_MODIFIED_DATE=2017_12_09
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -122,6 +122,31 @@ RSYNC_LINK=0
 # all VMs have been restarted
 ADDITIONAL_ROTATION_PATH=
 
+##########################################################
+# SLOW NAS CONFIGURATIONS - By Rapitharian
+##########################################################
+#This Feature was added to the program to provide a fix for slow NAS devices similar to the Drobo and Synology devices.  SMB and Home NAS devices.
+#This Feature enables the device to perform tasks (Deletes/data save for large files) and has the script wait for the NAS to catchup.
+#This code has been in production on the authors systems for the last 2 years.
+
+# Enable use of the NFS IO HACK for all NAS commands 1=yes, 0=no
+# 0 uses the script in it's original state.  
+ENABLE_NFS_IO_HACK=0
+
+# Set this value to determine how many times the script tries to work arround I/O errors each time the NAS slows down.
+# The script will skip past this loop if the NAS is responsive.
+NFS_IO_HACK_LOOP_MAX=10
+
+# This value determines the  number of seconds to sleep, when the NFS device is unresponsive.
+NFS_IO_HACK_SLEEP_TIMER=60
+
+# ONLY USE THIS WITH EXTREMELY SLOW NAS DEVICES!
+# This is a Brute-force/Mandatory delay added on top of any delay imposed by the NFS_IO_Hack.
+# Set a delay timer to allow the NFS server to catch up to GhettoVCB's stream, when the NAS isn't responding timely.
+# This acts like a cooldown period for the NAS.
+# The value is measured in seconds.  This causes the script to pause between each VM.
+NFS_BACKUP_DELAY=0
+
 ##################################################################
 #                   End User Definable Parameters
 ##################################################################
@@ -222,6 +247,7 @@ sanityCheck() {
     LOG_TO_STDOUT=1
 
     #if no logfile then provide default logfile in /tmp
+    
     if [[ -z "${LOG_OUTPUT}" ]] ; then
         LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
@@ -267,7 +293,7 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
-        6.0.0|6.5.0)          VER=6; break;;
+        6.0.0|6.5.0|6.7.0)    VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
@@ -339,6 +365,11 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
+	# Added the NFS_IO_HACK values below
+    DEFAULT_NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
+    DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"    
+    DEFAULT_NFS_BACKUP_DELAY="${NFS_BACKUP_DELAY}"
+    DEFAULT_ENABLE_NFS_IO_HACK="${ENABLE_NFS_IO_HACK}"
 }
 
 useDefaultConfigurations() {
@@ -361,6 +392,11 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
+	# Added the NFS_IO_HACK values below
+    ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK_ON}"
+    NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
+    NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
+    NFS_BACKUP_DELAY="${DEFAULT_NFS_BACKUP_DELAY}"
 }
 
 reConfigureGhettoVCBConfiguration() {
@@ -413,7 +449,7 @@ findVMDK() {
 
 getVMDKs() {
     #get all VMDKs listed in .vmx file
-    VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
+    VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
 
     VMDKS=
     INDEP_VMDKS=
@@ -524,7 +560,53 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-    logger "info" ""
+	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
+		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
+		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}"
+	fi
+    logger "\n"
+}
+
+# Added the function below to allow reuse of the basics of the original hack in more places in the script.
+# Rewrote the code to reduce the calls to the NAS when it slows.  Why make a bad situation worse with extra calls? 
+NfsIoHack() {
+    # NFS I/O error handling hack
+    NFS_IO_HACK_COUNTER=0
+    NFS_IO_HACK_STATUS=0
+    NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+    
+    while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+       touch "${NFS_IO_HACK_FILECHECK}"
+       if [[ $? -ne 0 ]] ; then
+           sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+           NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+       fi
+       [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+    done
+    
+    NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+
+    rm -rf "${NFS_IO_HACK_FILECHECK}"
+
+    if [[ "${NFS_IO_HACK_SLEEP_TIME}" -ne 0 ]] ; then
+        if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+            logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+        else
+            logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+        fi
+    fi
+}
+
+# Converted the section of code below to a function to be able to call it when a failed backup occurs.
+Get_Final_Status_Sendemail() {
+    getFinalStatus
+
+    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
+    logger "info" "============================== ghettoVCB LOG END ================================\n"
+
+    sendMail 
 }
 
 indexedRotate() {
@@ -542,6 +624,10 @@ indexedRotate() {
         if [[ -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
                 rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+                    NfsIoHack
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
                 else
@@ -549,6 +635,10 @@ indexedRotate() {
                 fi
             else
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+                   NfsIoHack
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
                 else
@@ -559,6 +649,10 @@ indexedRotate() {
         if [[ -d ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
                 rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+                   NfsIoHack
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 else
@@ -566,6 +660,10 @@ indexedRotate() {
                 fi
             else
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
+				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+                   NfsIoHack
+                fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
                 else
@@ -606,26 +704,35 @@ checkVMBackupRotation() {
             logger "debug" "Removing $BACKUP_DIR_PATH/$i"
             rm -rf "$BACKUP_DIR_PATH/$i"
 
-            #NFS I/O error handling hack
-            if [[ $? -ne 0 ]] ; then
-                NFS_IO_HACK_COUNTER=0
-                NFS_IO_HACK_STATUS=0
-                NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+			# Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
+            # Added variables to the code to control the timers and loops.
+            # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
+            if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
+                NfsIoHack
+            else
+				#NFS I/O error handling hack
+				if [[ $? -ne 0 ]] ; then
+					NFS_IO_HACK_COUNTER=0
+					NFS_IO_HACK_STATUS=0
+					NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
 
-                while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt 60 ]]; do
-                    sleep 1
-                    NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-                    touch "${NFS_IO_HACK_FILECHECK}"
+					while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+						sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+						NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+						touch "${NFS_IO_HACK_FILECHECK}"
 
-                    [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
-                done
+						[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+					done
 
-                rm -rf "${NFS_IO_HACK_FILECHECK}"
+					NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+				
+					rm -rf "${NFS_IO_HACK_FILECHECK}"
 
-                if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-                    logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds to work around NFS I/O error"
-                else
-                    logger "info" "Slept ${NFS_IO_HACK_COUNTER} seconds but failed work around for NFS I/O error"
+					if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+					else
+						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+					fi
                 fi
             fi
         fi
@@ -778,7 +885,7 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" ]] ; then
+	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" ]] ; then
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
             else
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
@@ -1207,9 +1314,6 @@ ghettoVCB() {
                         else
                             SYMLINK_DST1=${RSYNC_LINK_DIR}
                         fi
-                        logger "info" "RSYNC_LINK_DIR: $RSYNC_LINK_DIR"
-                        logger "info" "SYMLINK_DST: $SYMLINK_DST"
-                        logger "info" "VM_BACKUP_DIR: $VM_BACKUP_DIR"
                         SYMLINK_SRC="$(echo "${SYMLINK_DST%*-*-*-*_*-*-*}")-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
                         ln -sfn "${SYMLINK_DST1}" "${SYMLINK_SRC}"
@@ -1233,6 +1337,13 @@ ghettoVCB() {
                 fi
             fi
         fi
+		
+		# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
+		# Added the Brute-force delay in case it is needed.
+		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+			NfsIoHack
+			sleep "${NFS_BACKUP_DELAY}" 
+		fi 
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
@@ -1386,11 +1497,17 @@ sendMail() {
     fi
 }
 
-####################
-#                  #
-# Start of Script  #
-#                  #
-####################
+#########################
+#                       #
+# Start of Main Script  #
+#                       #
+#########################
+
+# If the NFS_IO_HACK is disabled, this restores the original script settings.
+if [[ "${ENABLE_NFS_IO_HACK}" -eq 0 ]]; then
+    NFS_IO_HACK_LOOP_MAX=60
+    NFS_IO_HACK_SLEEP_TIMER=1
+fi
 
 USE_VM_CONF=0
 USE_GLOBAL_CONF=0
@@ -1402,6 +1519,16 @@ if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
     printUsage
     LOG_TO_STDOUT=1 logger "info" "ERROR: Incorrect number of arguments!"
     exit 1
+fi
+
+#Quick sanity check for the VM_BACKUP_ROTATION_COUNT configuration setting.
+if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1 ]]; then
+	VM_BACKUP_ROTATION_COUNT=1
+fi
+
+#Sanity check for full qualified email and adjust EMAIL_FROM to be hostname@domain.com if username is missing.
+if [[ "${EMAIL_FROM%%@*}" == "" ]] ; then
+    EMAIL_FROM="`hostname -s`$EMAIL_FROM"
 fi
 
 #read user input
@@ -1490,17 +1617,13 @@ if mkdir "${WORKDIR}"; then
 
     ghettoVCB ${VM_FILE}
 
-    getFinalStatus
-
-    logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
-    logger "info" "============================== ghettoVCB LOG END ================================\n"
-
-    sendMail
+    Get_Final_Status_Sendemail
 
     # practically redundant
     [[ "${WORKDIR_DEBUG}" -eq 0 ]] && rm -rf "${WORKDIR}"
     exit $EXIT
 else
     logger "info" "Failed to acquire lock, another instance of script may be running, giving up on ${WORKDIR}\n"
+	Get_Final_Status_Sendemail
     exit 1
 fi
