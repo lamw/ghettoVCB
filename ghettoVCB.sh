@@ -902,9 +902,17 @@ ghettoVCB() {
     if [[ "${USE_VM_CONF}" -eq 0 ]] ; then
         dumpVMConfigurations
     fi
-
     #dump out all virtual machines allowing for spaces now
-    ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}' |  sed 's/\] /\]\";\"/g' > ${WORKDIR}/vms_list
+    ##also allows for use of additional special chars in name - method for creating vms_list file redone (JM)
+    echo -n > ${WORKDIR}/vms_list 
+    oldifs=$IFS; IFS=$'\n'
+    for i in $(${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print "\""$1"\";\""$2"\";\""$3"\""}'); do
+        vm_id=$(echo $i | awk -F ';' '{ print $1 }')
+        vm_name=$(echo $i | awk -F ';' '{ print $2 }')
+        vm_file=$(echo $i | awk -F ';' '{ print $3 }' |  sed 's/\] /\]\";\"/' )
+        echo $vm_id\;$vm_name\;$vm_file >> ${WORKDIR}/vms_list 
+    done
+    IFS=$oldifs
 
     if [[ "${BACKUP_ALL_VMS}" -eq 1 ]] ; then
         ${VMWARE_CMD} vmsvc/getallvms | sed 's/[[:blank:]]\{3,\}/   /g' | fgrep "[" | fgrep "vmx-" | fgrep ".vmx" | fgrep "/" | awk -F'   ' '{print ""$2""}' | sed '/^$/d' > "${VM_INPUT}"
@@ -918,7 +926,7 @@ ghettoVCB() {
         IFS2="${IFS}"
         IFS=","
         for VM_NAME in ${VM_SHUTDOWN_ORDER}; do
-            VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
+            VM_ID=$(grep -E "\"${esc_VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
             powerOff "${VM_NAME}" "${VM_ID}"
             if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                 logger "debug" "Error unable to shutdown VM ${VM_NAME}\n"
@@ -932,7 +940,7 @@ ghettoVCB() {
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
-            grep -E "^${VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
+            grep -E "^${esc_VM_NAME}" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
                 #VM_FAILED=0   #Excluded VM is NOT a failure. No need to set here, but listed for clarity
@@ -947,8 +955,10 @@ ghettoVCB() {
                 VM_FAILED=1
             fi
         fi
+	## esc_VM_NAME is set and now used in most places where its used as part of a filename or grep search (JM)
+        esc_VM_NAME=$(echo $VM_NAME | sed 's/\[/\\\[/g;s/\]/\\\]/g;s/\(/\\\(/g;s/\)/\\\)/g')
+        VM_ID=$(grep -E "\"${esc_VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
-        VM_ID=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
         #ensure default value if one is not selected or variable is null
         if [[ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]] ; then
@@ -960,8 +970,9 @@ ghettoVCB() {
             dumpVMConfigurations
         fi
 
-        VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
-        VMX_CONF=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
+
+        VMFS_VOLUME=$(grep -E "\"${esc_VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
+        VMX_CONF=$(grep -E "\"${esc_VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/"//g')
         VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
         VMX_DIR=$(dirname "${VMX_PATH}")
 
@@ -969,7 +980,6 @@ ghettoVCB() {
         if [[ ! -z ${VM_ID} ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
             storageInfo "before"
         fi
-
         #ignore VM as it's in the exclusion list or was on problem list
         if [[ "${IGNORE_VM}" -eq 1 ]] ; then
             logger "debug" "Ignoring ${VM_NAME} for backup since it is located in exclusion file or problem list\n"
@@ -977,7 +987,6 @@ ghettoVCB() {
         elif [[ -z ${VM_ID} ]] ; then
             logger "info" "ERROR: failed to locate and extract VM_ID for ${VM_NAME}!\n"
             VM_FAILED=1
-
         elif [[ "${LOG_LEVEL}" == "dryrun" ]] ; then
             logger "dryrun" "###############################################"
             logger "dryrun" "Virtual Machine: $VM_NAME"
@@ -1035,6 +1044,7 @@ ghettoVCB() {
 
         #checks to see if the VM has any snapshots to start with
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
+
             if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
                     logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
@@ -1047,7 +1057,7 @@ ghettoVCB() {
             fi
     	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
-                BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
+                BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${esc_VM_NAME}"
                 if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
                     logger "info" "ERROR: Variable BACKUP_DIR was not set properly, please ensure all required variables for non-persistent NFS backup option has been defined"
                     exit 1
@@ -1056,6 +1066,7 @@ ghettoVCB() {
                 #non-nfs (SAN,LOCAL)
             else
                 BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
+		esc_BACKUP_DIR="${VM_BACKUP_VOLUME}/${esc_VM_NAME}"
                 if [[ -z ${VM_BACKUP_VOLUME} ]]; then
                     logger "info" "ERROR: Variable VM_BACKUP_VOLUME was not defined"
                     exit 1
@@ -1070,16 +1081,17 @@ ghettoVCB() {
                     exit 1
                 fi
             fi
-
+            
             # directory name of the individual Virtual Machine backup followed by naming convention followed by count
             VM_BACKUP_DIR="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
+            esc_VM_BACKUP_DIR="${esc_BACKUP_DIR}/${esc_VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
 
             # Rsync relative path variable if needed
-            RSYNC_LINK_DIR="./${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
+            RSYNC_LINK_DIR="./${esc_VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}"
 
             # Do indexed rotation if naming convention is set for it
             if [[ ${VM_BACKUP_DIR_NAMING_CONVENTION} = "0" ]]; then
-                indexedRotate "${BACKUP_DIR}" "${VM_NAME}"
+                indexedRotate "${BACKUP_DIR}" "${esc_VM_NAME}"
             fi
 
             mkdir -p "${VM_BACKUP_DIR}"
@@ -1249,7 +1261,7 @@ ghettoVCB() {
                 TMP_IFS=${IFS}
                 IFS=${ORIG_IFS}
                 if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
-                    COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
+                    COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${esc_VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
 
                     logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
                     ${TAR} -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
@@ -1263,9 +1275,9 @@ ghettoVCB() {
                         COMPRESSED_OK=0
                     fi
                     rm -rf "${VM_BACKUP_DIR}"
-                    checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+                    checkVMBackupRotation "${BACKUP_DIR}" "${esc_VM_NAME}"
                 else
-                    checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
+                    checkVMBackupRotation "${BACKUP_DIR}" "${esc_VM_NAME}"
                 fi
                 IFS=${TMP_IFS}
                 VMDKS=""
@@ -1522,7 +1534,7 @@ if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
 fi
 
 #Quick sanity check for the VM_BACKUP_ROTATION_COUNT configuration setting.
-if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1 ]]; then
+if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1]]; then
 	VM_BACKUP_ROTATION_COUNT=1
 fi
 
