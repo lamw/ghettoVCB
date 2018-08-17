@@ -1534,7 +1534,7 @@ if [[ $# -lt 1 ]] || [[ $# -gt 12 ]]; then
 fi
 
 #Quick sanity check for the VM_BACKUP_ROTATION_COUNT configuration setting.
-if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1]]; then
+if [[ "$VM_BACKUP_ROTATION_COUNT" -lt 1 ]]; then
 	VM_BACKUP_ROTATION_COUNT=1
 fi
 
