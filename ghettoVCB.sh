@@ -956,7 +956,7 @@ ghettoVCB() {
             fi
         fi
 	## esc_VM_NAME is set and now used in most places where its used as part of a filename or grep search (JM)
-        esc_VM_NAME=$(echo $VM_NAME | sed 's/\[/\\\[/g;s/\]/\\\]/g;s/\(/\\\(/g;s/\)/\\\)/g')
+        esc_VM_NAME=$(echo $VM_NAME | sed 's/\[/\\\[/g;s/\]/\\\]/g;s/(/\\(/g;s/)/\\)/g')
         VM_ID=$(grep -E "\"${esc_VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $1}' | sed 's/"//g')
 
 
