@@ -9,7 +9,7 @@
 ##################################################################
 
 LAST_MODIFIED_DATE=2019_01_06
-VERSION=2
+VERSION=3
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -1045,7 +1045,7 @@ ghettoVCB() {
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
             if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+                    logger "error" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                     VM_FAILED=1
                     continue
                 elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
