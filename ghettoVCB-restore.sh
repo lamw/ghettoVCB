@@ -286,7 +286,7 @@ if [ ! "${IS_TGZ}" == "1" ]; then
             logger "Copying \"${VM_ORIG_VMX}\" file ..."
             if [ ! "${DEVEL_MODE}" == "2" ]; then
                 cp "${VM_TO_RESTORE}/${VM_ORIG_VMX}" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
-                sed -i "s/displayName =.*/displayName = ${VM_DISPLAY_NAME}/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+                sed -i "s/displayName =.*/displayName = \"${VM_DISPLAY_NAME}\"/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
             fi
 
             #loop through all VMDK(s) and vmkfstools copy to destination
