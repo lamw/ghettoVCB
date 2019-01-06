@@ -532,8 +532,8 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VERSION = ${VERSION_STRING}"
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
-    if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
-        logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
+    logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
+	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
@@ -571,9 +571,10 @@ dumpVMConfigurations() {
 		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
 		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
 		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
-		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}"
+		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
+	else
+	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
 	fi
-    logger "\n"
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
