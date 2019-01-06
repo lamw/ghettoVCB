@@ -1,13 +1,14 @@
 # Author: William Lam
 # Created Date: 11/17/2008
 # http://www.virtuallyghetto.com/
+# https://github.com/lamw/ghettoVCB
 # http://communities.vmware.com/docs/DOC-8760
 
 ##################################################################
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2017_12_09
+LAST_MODIFIED_DATE=2019_01_06
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -130,7 +131,7 @@ ADDITIONAL_ROTATION_PATH=
 #This code has been in production on the authors systems for the last 2 years.
 
 # Enable use of the NFS IO HACK for all NAS commands 1=yes, 0=no
-# 0 uses the script in it's original state.  
+# 0 uses the script in it's original state.
 ENABLE_NFS_IO_HACK=0
 
 # Set this value to determine how many times the script tries to work arround I/O errors each time the NAS slows down.
@@ -247,7 +248,7 @@ sanityCheck() {
     LOG_TO_STDOUT=1
 
     #if no logfile then provide default logfile in /tmp
-    
+
     if [[ -z "${LOG_OUTPUT}" ]] ; then
         LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
@@ -367,7 +368,7 @@ captureDefaultConfigurations() {
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 	# Added the NFS_IO_HACK values below
     DEFAULT_NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
-    DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"    
+    DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"
     DEFAULT_NFS_BACKUP_DELAY="${NFS_BACKUP_DELAY}"
     DEFAULT_ENABLE_NFS_IO_HACK="${ENABLE_NFS_IO_HACK}"
 }
@@ -440,7 +441,7 @@ findVMDK() {
         VMDK_FILE=$(echo $k | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
         if [[ "${VMDK_FILE}" == "${VMDK_TO_SEARCH_FOR}" ]] ; then
             logger "debug" "findVMDK() - Found VMDK! - \"${VMDK_TO_SEARCH_FOR}\" to backup"
-           isVMDKFound=1
+            isVMDKFound=1
         fi
     done
     IFS="${OLD_IFS2}"
@@ -500,7 +501,7 @@ getVMDKs() {
                         DISK_SIZE=$(echo "${DISK_SIZE_IN_SECTORS}" | awk '{printf "%.0f\n",$1*512/1024/1024/1024}')
                         VMDKS="${DISK}###${DISK_SIZE}:${VMDKS}"
                         TOTAL_VM_SIZE=$((TOTAL_VM_SIZE_IN+DISK_SIZE))
-                   fi
+                    fi
                 fi
 
             else
@@ -576,16 +577,16 @@ NfsIoHack() {
     NFS_IO_HACK_COUNTER=0
     NFS_IO_HACK_STATUS=0
     NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
-    
+
     while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
-       touch "${NFS_IO_HACK_FILECHECK}"
-       if [[ $? -ne 0 ]] ; then
-           sleep "${NFS_IO_HACK_SLEEP_TIMER}"
-           NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-       fi
-       [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+        touch "${NFS_IO_HACK_FILECHECK}"
+        if [[ $? -ne 0 ]] ; then
+            sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+            NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+        fi
+        [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
     done
-    
+
     NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
 
     rm -rf "${NFS_IO_HACK_FILECHECK}"
@@ -606,7 +607,7 @@ Get_Final_Status_Sendemail() {
     logger "debug" "Succesfully removed lock directory - ${WORKDIR}\n"
     logger "info" "============================== ghettoVCB LOG END ================================\n"
 
-    sendMail 
+    sendMail
 }
 
 indexedRotate() {
@@ -637,7 +638,7 @@ indexedRotate() {
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
 				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-                   NfsIoHack
+                    NfsIoHack
                 fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
@@ -651,7 +652,7 @@ indexedRotate() {
                 rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
 				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-                   NfsIoHack
+                    NfsIoHack
                 fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Deleted ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
@@ -662,7 +663,7 @@ indexedRotate() {
                 mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
 				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-                   NfsIoHack
+                    NfsIoHack
                 fi
                 if [[ $? -eq 0 ]]; then
                     logger "info" "Moved ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
@@ -725,7 +726,7 @@ checkVMBackupRotation() {
 					done
 
 					NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
-				
+
 					rm -rf "${NFS_IO_HACK_FILECHECK}"
 
 					if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
@@ -932,7 +933,7 @@ ghettoVCB() {
     for VM_NAME in $(cat "${VM_INPUT}" | grep -v "^#" | sed '/^$/d' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//'); do
         IGNORE_VM=0
         if [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]] ; then
-            grep -E "^${VM_NAME}$" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
+            grep -E "^${VM_NAME}\$" "${VM_EXCLUSION_FILE}" > /dev/null 2>&1
             if [[ $? -eq 0 ]] ; then
                 IGNORE_VM=1
                 #VM_FAILED=0   #Excluded VM is NOT a failure. No need to set here, but listed for clarity
@@ -1339,7 +1340,7 @@ ghettoVCB() {
                 fi
             fi
         fi
-		
+
 		# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
 		# Added the Brute-force delay in case it is needed.
 		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
