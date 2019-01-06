@@ -9,7 +9,7 @@
 ##################################################################
 
 LAST_MODIFIED_DATE=2019_01_06
-VERSION=1
+VERSION=2
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -1292,7 +1292,7 @@ ghettoVCB() {
                     logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
                     VMDK_FAILED=1
-                    #experimental
+
                     #create symlink for the very last backup to support rsync functionality for additinal replication
                     if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
                         SYMLINK_DST=${VM_BACKUP_DIR}
@@ -1304,7 +1304,7 @@ ghettoVCB() {
                         SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
                         rm -f "${SYMLINK_SRC}"
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                        ln -sfn "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
                     #storage info after backup
@@ -1314,7 +1314,6 @@ ghettoVCB() {
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "Successfully completed backup" > ${VM_BACKUP_DIR}/STATUS.ok
                     VM_OK=1
 
-                    #experimental
                     #create symlink for the very last backup to support rsync functionality for additinal replication
                     if [[ "${RSYNC_LINK}" -eq 1 ]] ; then
                         SYMLINK_DST=${VM_BACKUP_DIR}
@@ -1326,7 +1325,7 @@ ghettoVCB() {
                         SYMLINK_SRC="${BACKUP_DIR}/${VM_NAME}-symlink"
                         logger "info" "Creating symlink \"${SYMLINK_SRC}\" to \"${SYMLINK_DST1}\""
                         rm -f "${SYMLINK_SRC}"
-                        ln -sf "${SYMLINK_DST1}" "${SYMLINK_SRC}"
+                        ln -sfn "${SYMLINK_DST1}" "${SYMLINK_SRC}"
                     fi
 
                     if [[ "${BACKUP_FILES_CHMOD}" != "" ]]
