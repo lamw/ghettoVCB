@@ -9,7 +9,7 @@
 ##################################################################
 
 LAST_MODIFIED_DATE=2019_01_06
-VERSION=3
+VERSION=4
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -1022,7 +1022,7 @@ ghettoVCB() {
 
             logger "dryrun" "TOTAL_VM_SIZE_TO_BACKUP: ${TOTAL_VM_SIZE} GB"
             if [[ ${HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
-                logger "dryrun" "Snapshots can not be taken for indepdenent disks!"
+                logger "dryrun" "Snapshots can not be taken for independent disks!"
                 logger "dryrun" "THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!"
             fi
 
