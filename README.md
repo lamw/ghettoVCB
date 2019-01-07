@@ -6,7 +6,7 @@ The ghettoVCB script performs backups of virtual machines residing on ESX(i) 3.x
 
 ### How to install
 
-You can quickly install ghettoVCB by downloading and install either the VIB or offline bundle using the following commands:
+You can quickly install/update ghettoVCB by downloading and install either the VIB or offline bundle using the following commands. If you wish to update to latest ghettoVCB release and are using the ghettovcb.conf file and wish to have the setting persist, make sure to use the *update* command instead of *install*
 
 Install VIB
 ```
@@ -16,6 +16,16 @@ esxcli software vib install -v /vghetto-ghettoVCB.vib -f
 Install offline bundle
 ```
 esxcli software vib install -d /vghetto-ghettoVCB-offline-bundle.zip -f
+```
+
+Update VIB
+```
+esxcli software vib update -v /vghetto-ghettoVCB.vib -f
+```
+
+Update offline bundle
+```
+esxcli software vib update -d /vghetto-ghettoVCB-offline-bundle.zip -f
 ```
 
 ### Additional Documentation & Resources
