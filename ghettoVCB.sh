@@ -454,6 +454,27 @@ findVMDK() {
     #fi
 }
 
+findVMDKParent() {
+    CURRENT_VMDK=$1
+    PARENT_VMDK=${CURRENT_VMDK}
+    echo ${CURRENT_VMDK} | grep "/vmfs/volumes" > /dev/null 2>&1
+    if [[ $? -ne 0 ]] ; then
+        CURRENT_VMDK="${VMX_DIR}/${CURRENT_VMDK}"
+    fi
+    FIND_PARENT_VMDK=$(grep -i "parentFileNameHint" ${CURRENT_VMDK}  | awk -F "=" '{print $2}'| sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+    if [[ ! -z "${FIND_PARENT_VMDK}" ]] ; then
+        echo ${FIND_PARENT_VMDK} | grep "/vmfs/volumes" > /dev/null 2>&1
+        if [[ $? -ne 0 ]] ; then
+            FIND_PARENT_VMDK="$(dirname ${CURRENT_VMDK})/${FIND_PARENT_VMDK}"
+        fi
+        logger "debug" "${CURRENT_VMDK}   ${FIND_PARENT_VMDK}"
+	findVMDKParent ${FIND_PARENT_VMDK}
+    fi
+}
+
+
+
+
 getVMDKs() {
     #get all VMDKs listed in .vmx file
     VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
@@ -972,6 +993,7 @@ ghettoVCB() {
         VMX_CONF=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $4}' | sed 's/\[//;s/\]//;s/"//g')
         VMX_PATH="/vmfs/volumes/${VMFS_VOLUME}/${VMX_CONF}"
         VMX_DIR=$(dirname "${VMX_PATH}")
+        VM_WITH_SNAPSHOTS=0
 
         #storage info
         if [[ ! -z ${VM_ID} ]] && [[ "${LOG_LEVEL}" != "dryrun" ]]; then
@@ -1049,8 +1071,13 @@ ghettoVCB() {
                     VM_FAILED=1
                     continue
                 elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
-                    logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
-                    $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
+                    if [[ "${NEW_VIMCMD_SNAPSHOT}" == "yes" ]] ; then
+                        logger "info" "Snapshot found for ${VM_NAME}, try make backup with snapshot \n"
+                        VM_WITH_SNAPSHOTS=1
+                    else
+                        logger "info" "Snapshot found for ${VM_NAME}, consolidating ALL snapshots now (this can take awhile) ...\n"
+                        $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
+                    fi
                 fi
             fi
     	    #nfs case and backup to root path of your NFS mount
@@ -1132,7 +1159,14 @@ ghettoVCB() {
                     logger "debug" "Waiting for snapshot \"${SNAPSHOT_NAME}\" to be created"
                     logger "debug" "Snapshot timeout set to: $((SNAPSHOT_TIMEOUT*60)) seconds"
                     START_ITERATION=0
-                    while [[ $(${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | wc -l) -eq 1 ]]; do
+
+                    CHECK_CMD="${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | wc -l"
+                    if [[ ${VM_WITH_SNAPSHOTS} -eq 1 ]]; then
+                        CHECK_CMD="${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} |  wc -l"
+                    fi
+
+
+                    while [[ $(eval ${CHECK_CMD}) -le 1 ]]; do
                         if [[ ${START_ITERATION} -ge ${SNAPSHOT_TIMEOUT} ]] ; then
                             logger "info" "Snapshot timed out, failed to create snapshot: \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
                             SNAP_SUCCESS=0
@@ -1170,9 +1204,11 @@ ghettoVCB() {
                                 SOURCE_VMDK="${VMX_DIR}/${VMDK}"
                                 DESTINATION_VMDK="${VM_BACKUP_DIR}/${VMDK}"
                             fi
-
+                            PARENT_VMDK=${SOURCE_VMDK}
+                            findVMDKParent ${SOURCE_VMDK}
+                            logger "info" "Found parent disk ${PARENT_VMDK}  for ${SOURCE_VMDK}"
                             #support for vRDM and deny pRDM
-                            grep "vmfsPassthroughRawDeviceMap" "${SOURCE_VMDK}" > /dev/null 2>&1
+                            grep "vmfsPassthroughRawDeviceMap" "${PARENT_VMDK}" > /dev/null 2>&1
                             if [[ $? -eq 1 ]] ; then
                                 FORMAT_OPTION="UNKNOWN"
                                 if [[ "${DISK_BACKUP_FORMAT}" == "zeroedthick" ]] ; then
@@ -1201,7 +1237,7 @@ ghettoVCB() {
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
 
-                                    ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+                                    ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${PARENT_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
 
                                     if  [[ -z "${FORMAT_OPTION}" ]] ; then
                                         logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
@@ -1240,12 +1276,17 @@ ghettoVCB() {
                     else
                         ${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} > /dev/null 2>&1
                     fi
-
+                    if [[ ${VM_WITH_SNAPSHOTS} -eq 1 ]]; then
+                        CHECK_CMD="${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep 'Snapshot Id'"
+                    else
+                        CHECK_CMD="ls \"${VMX_DIR}\" | grep -q \"\-delta\.vmdk\""
+                    fi
                     #do not continue until all snapshots have been committed
                     logger "info" "Removing snapshot from ${VM_NAME} ..."
-                    while ls "${VMX_DIR}" | grep -q "\-delta\.vmdk"; do
+                    while $(eval ${CHECK_CMD}) ; do
                         sleep 5
                     done
+
                 fi
 
                 if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
