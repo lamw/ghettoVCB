@@ -189,6 +189,7 @@ printUsage() {
         echo
         echo "OPTIONS:"
         echo "   -a     Backup all VMs on host"
+        echo "   -e     Path to VM exclusion list"
         echo "   -f     List of VMs to backup"
         echo "   -m     Name of VM to backup (overrides -f)"
         echo "   -c     VM configuration directory for VM backups"
@@ -533,7 +534,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
     logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
-	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
+    if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
@@ -567,18 +568,18 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
-		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
-		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
-		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
-	else
-	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
-	fi
+    if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+		    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
+        logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
+        logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+        logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
+    else
+        logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
+    fi
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
-# Rewrote the code to reduce the calls to the NAS when it slows.  Why make a bad situation worse with extra calls? 
+# Rewrote the code to reduce the calls to the NAS when it slows.  Why make a bad situation worse with extra calls?
 NfsIoHack() {
     # NFS I/O error handling hack
     NFS_IO_HACK_COUNTER=0
@@ -715,7 +716,7 @@ checkVMBackupRotation() {
 			# Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
             # Added variables to the code to control the timers and loops.
             # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
-            if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
+            if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                 NfsIoHack
             else
 				#NFS I/O error handling hack
@@ -893,12 +894,12 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" ]] ; then
+            if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" ]] ; then
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
             else
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
             fi
-	fi
+        fi
     fi
 
     captureDefaultConfigurations
@@ -1053,7 +1054,7 @@ ghettoVCB() {
                     $VMWARE_CMD vmsvc/snapshot.removeall ${VM_ID} > /dev/null 2>&1
                 fi
             fi
-    	    #nfs case and backup to root path of your NFS mount
+            #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
                 if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
@@ -1061,7 +1062,7 @@ ghettoVCB() {
                     exit 1
                 fi
 
-                #non-nfs (SAN,LOCAL)
+            #non-nfs (SAN,LOCAL)
             else
                 BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
                 if [[ -z ${VM_BACKUP_VOLUME} ]]; then
@@ -1351,8 +1352,8 @@ ghettoVCB() {
 		# Added the Brute-force delay in case it is needed.
 		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
 			NfsIoHack
-			sleep "${NFS_BACKUP_DELAY}" 
-		fi 
+			sleep "${NFS_BACKUP_DELAY}"
+		fi
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
