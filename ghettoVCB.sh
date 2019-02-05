@@ -8,8 +8,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_01_06
-VERSION=4
+LAST_MODIFIED_DATE=2019_02_05
+VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -24,8 +24,10 @@ DISK_BACKUP_FORMAT=thin
 # Number of backups for a given VM before deleting
 VM_BACKUP_ROTATION_COUNT=3
 
-# Shutdown guestOS prior to running backups and power them back on afterwards
-# This feature assumes VMware Tools are installed, else they will not power down and loop forever
+# Shutdown guestOS, take a snapshot, power back on the VM, backup the snapshot and consolidate the
+# snapshot afterwards (making a "cold" backup). This feature needs working VMware Tools installed,
+# else the shutdown will loop forever. ENABLE_HARD_POWER_OFF=1 is recommended to avoid an infinite
+# loop.
 # 1=on, 0 =off
 POWER_VM_DOWN_BEFORE_BACKUP=0
 
@@ -1151,6 +1153,13 @@ ghettoVCB() {
                 if [[ ${SNAP_SUCCESS} -eq 1 ]] ; then
                     OLD_IFS="${IFS}"
                     IFS=":"
+
+                    if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
+                        # power on vm that was powered off prior to snapshot
+                        logger "info" "Powering back on ${VM_NAME}"
+                        ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
+                    fi
+
                     for j in ${VMDKS}; do
                         VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
                         isVMDKFound=0
@@ -1247,12 +1256,6 @@ ghettoVCB() {
                     while ls "${VMX_DIR}" | grep -q "\-delta\.vmdk"; do
                         sleep 5
                     done
-                fi
-
-                if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
-                    #power on vm that was powered off prior to backup
-                    logger "info" "Powering back on ${VM_NAME}"
-                    ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
                 fi
 
                 TMP_IFS=${IFS}
