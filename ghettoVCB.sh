@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_02_05
+LAST_MODIFIED_DATE=2019_02_07
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -1127,7 +1127,7 @@ ghettoVCB() {
                 VM_VMDK_FAILED=0
 
                 #powered on VMs only
-                if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
+                if [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
                     SNAPSHOT_NAME="ghettoVCB-snapshot-$(date +%F)"
                     logger "info" "Creating Snapshot \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
                     ${VMWARE_CMD} vmsvc/snapshot.create ${VM_ID} "${SNAPSHOT_NAME}" "${SNAPSHOT_NAME}" "${VM_SNAPSHOT_MEMORY}" "${VM_SNAPSHOT_QUIESCE}" > /dev/null 2>&1
@@ -1243,7 +1243,7 @@ ghettoVCB() {
                 fi
 
                 #powered on VMs only w/snapshots
-                if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
+                if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
                     if [[ "${NEW_VIMCMD_SNAPSHOT}" == "yes" ]] ; then
                         SNAPSHOT_ID=$(${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep "Snapshot Id" | awk -F ":" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
                         ${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} ${SNAPSHOT_ID} > /dev/null 2>&1
