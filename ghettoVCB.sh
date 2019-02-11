@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_01_06
+LAST_MODIFIED_DATE=2019_02_08
 VERSION=4
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -28,6 +28,9 @@ VM_BACKUP_ROTATION_COUNT=3
 # This feature assumes VMware Tools are installed, else they will not power down and loop forever
 # 1=on, 0 =off
 POWER_VM_DOWN_BEFORE_BACKUP=0
+
+# When a power down VM before backup is requested, a snapshot and restart will occurs immediately prior to the backup.
+COLD_START_SNAPSHOT=0
 
 # enable shutdown code 1=on, 0 = off
 ENABLE_HARD_POWER_OFF=0
@@ -357,6 +360,7 @@ captureDefaultConfigurations() {
     DEFAULT_DISK_BACKUP_FORMAT="${DISK_BACKUP_FORMAT}"
     DEFAULT_VM_BACKUP_ROTATION_COUNT="${VM_BACKUP_ROTATION_COUNT}"
     DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP="${POWER_VM_DOWN_BEFORE_BACKUP}"
+    DEFAULT_COLD_START_SNAPSHOT="${COLD_START_SNAPSHOT}"
     DEFAULT_ENABLE_HARD_POWER_OFF="${ENABLE_HARD_POWER_OFF}"
     DEFAULT_ITER_TO_WAIT_SHUTDOWN="${ITER_TO_WAIT_SHUTDOWN}"
     DEFAULT_POWER_DOWN_TIMEOUT="${POWER_DOWN_TIMEOUT}"
@@ -384,6 +388,7 @@ useDefaultConfigurations() {
     DISK_BACKUP_FORMAT="${DEFAULT_DISK_BACKUP_FORMAT}"
     VM_BACKUP_ROTATION_COUNT="${DEFAULT_VM_BACKUP_ROTATION_COUNT}"
     POWER_VM_DOWN_BEFORE_BACKUP="${DEFAULT_POWER_VM_DOWN_BEFORE_BACKUP}"
+    COLD_START_SNAPSHOT="${DEFAULT_COLD_START_SNAPSHOT}"
     ENABLE_HARD_POWER_OFF="${DEFAULT_ENABLE_HARD_POWER_OFF}"
     ITER_TO_WAIT_SHUTDOWN="${DEFAULT_ITER_TO_WAIT_SHUTDOWN}"
     POWER_DOWN_TIMEOUT="${DEFAULT_POWER_DOWN_TIMEOUT}"
@@ -543,6 +548,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - VM_BACKUP_DIR_NAMING_CONVENTION = ${VM_BACKUP_DIR_NAMING_CONVENTION}"
     logger "info" "CONFIG - DISK_BACKUP_FORMAT = ${DISK_BACKUP_FORMAT}"
     logger "info" "CONFIG - POWER_VM_DOWN_BEFORE_BACKUP = ${POWER_VM_DOWN_BEFORE_BACKUP}"
+    logger "info" "CONFIG - COLD_START_SNAPSHOT = ${COLD_START_SNAPSHOT}"
     logger "info" "CONFIG - ENABLE_HARD_POWER_OFF = ${ENABLE_HARD_POWER_OFF}"
     logger "info" "CONFIG - ITER_TO_WAIT_SHUTDOWN = ${ITER_TO_WAIT_SHUTDOWN}"
     logger "info" "CONFIG - POWER_DOWN_TIMEOUT = ${POWER_DOWN_TIMEOUT}"
@@ -1123,8 +1129,12 @@ ghettoVCB() {
                 SNAP_SUCCESS=1
                 VM_VMDK_FAILED=0
 
-                #powered on VMs only
-                if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
+                #powered on VMs only including cold start snapshot
+                if [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]] && \
+                  ([[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ ${COLD_START_SNAPSHOT} -eq 1 ]] || [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]]); then
+                    # log message that a POWER_VM_DOWN_BEFORE_BACKUP is required to be enabled for the COLD_START_SNAPSHOT to execute when enabled
+                    [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ ${COLD_START_SNAPSHOT} -eq 1 ]] && \
+                      logger "info" "The requested cold start snapshot was disabled since the power VM down before backup was not enabled."
                     SNAPSHOT_NAME="ghettoVCB-snapshot-$(date +%F)"
                     logger "info" "Creating Snapshot \"${SNAPSHOT_NAME}\" for ${VM_NAME}"
                     ${VMWARE_CMD} vmsvc/snapshot.create ${VM_ID} "${SNAPSHOT_NAME}" "${SNAPSHOT_NAME}" "${VM_SNAPSHOT_MEMORY}" "${VM_SNAPSHOT_QUIESCE}" > /dev/null 2>&1
@@ -1148,6 +1158,13 @@ ghettoVCB() {
                 fi
 
                 if [[ ${SNAP_SUCCESS} -eq 1 ]] ; then
+                    # cold start restart of VM prior to backup
+                    if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ ${COLD_START_SNAPSHOT} -eq 1 ]]; then
+                        # cold start power on vm prior to backup
+                        logger "info" "Powering back on ${VM_NAME}"
+                        ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
+                    fi
+
                     OLD_IFS="${IFS}"
                     IFS=":"
                     for j in ${VMDKS}; do
@@ -1233,7 +1250,10 @@ ghettoVCB() {
                 fi
 
                 #powered on VMs only w/snapshots
-                if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
+                #if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]; then
+                # The above original statement does not sound right to me, I think it should have been: if [[ ${SNAP_SUCCESS} -eq 1 ]] && [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && ([[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]); then
+                if [[ ${SNAP_SUCCESS} -eq 1 ]] && ([[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]] || [[ "${ORGINAL_VM_POWER_STATE}" == "Suspended" ]]) && \
+                  ([[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ ${COLD_START_SNAPSHOT} -eq 1 ]] || [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]]); then
                     if [[ "${NEW_VIMCMD_SNAPSHOT}" == "yes" ]] ; then
                         SNAPSHOT_ID=$(${VMWARE_CMD} vmsvc/snapshot.get ${VM_ID} | grep -E '(Snapshot Name|Snapshot Id)' | grep -A1 ${SNAPSHOT_NAME} | grep "Snapshot Id" | awk -F ":" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
                         ${VMWARE_CMD} vmsvc/snapshot.remove ${VM_ID} ${SNAPSHOT_ID} > /dev/null 2>&1
@@ -1248,8 +1268,8 @@ ghettoVCB() {
                     done
                 fi
 
-                if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
-                    #power on vm that was powered off prior to backup
+                if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ ! ${COLD_START_SNAPSHOT} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" == "Powered on" ]]; then
+                    #power on vm that was powered off prior to backup, excluding cold start
                     logger "info" "Powering back on ${VM_NAME}"
                     ${VMWARE_CMD} vmsvc/power.on ${VM_ID} > /dev/null 2>&1
                 fi
