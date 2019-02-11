@@ -8,8 +8,11 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_01_06
+LAST_MODIFIED_DATE=2019_02_07
 VERSION=4
+
+# Adjust the date information with the timezone for logging, directory naming, etc..
+TIMEZONE=UTC
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -167,12 +170,6 @@ VMDK_FILES_TO_BACKUP="all"
 
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
-# Directory naming convention for backup rotations (please ensure there are no spaces!)
-# If set to "0", VMs will be rotated via an index, beginning at 0, ending at
-# VM_BACKUP_ROTATION_COUNT-1
-VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
-
-
 printUsage() {
         echo "###############################################################################"
         echo "#"
@@ -222,7 +219,7 @@ logger() {
     MSG=$2
 
     if [[ "${LOG_LEVEL}" == "debug" ]] && [[ "${LOG_TYPE}" == "debug" ]] || [[ "${LOG_TYPE}" == "info" ]] || [[ "${LOG_TYPE}" == "dryrun" ]]; then
-        TIME=$(date +%F" "%H:%M:%S)
+        TIME=$(TZ=$TIMEZONE date +%F" "%H:%M:%S)
         if [[ "${LOG_TO_STDOUT}" -eq 1 ]] ; then
             echo -e "${TIME} -- ${LOG_TYPE}: ${MSG}"
         fi
@@ -256,7 +253,7 @@ sanityCheck() {
     #if no logfile then provide default logfile in /tmp
 
     if [[ -z "${LOG_OUTPUT}" ]] ; then
-        LOG_OUTPUT="/tmp/ghettoVCB-$(date +%F_%H-%M-%S)-$$.log"
+        LOG_OUTPUT="/tmp/ghettoVCB-$(TZ=$TIMEZONE date +%F_%H-%M-%S)-$$.log"
         echo "Logging output to \"${LOG_OUTPUT}\" ..."
     fi
 
@@ -335,13 +332,13 @@ sanityCheck() {
 }
 
 startTimer() {
-    START_TIME=$(date)
-    S_TIME=$(date +%s)
+    START_TIME=$(TZ=$TIMEZONE date)
+    S_TIME=$(TZ=$TIMEZONE date +%s)
 }
 
 endTimer() {
-    END_TIME=$(date)
-    E_TIME=$(date +%s)
+    END_TIME=$(TZ=$TIMEZONE date)
+    E_TIME=$(TZ=$TIMEZONE date +%s)
     DURATION=$(echo $((E_TIME - S_TIME)))
 
     #calculate overall completion time
@@ -353,6 +350,11 @@ endTimer() {
 }
 
 captureDefaultConfigurations() {
+    DEFAULT_TIMEZONE="${TIMEZONE}"
+    # Directory naming convention for backup rotations (please ensure there are no spaces!)
+    # If set to "0", VMs will be rotated via an index, beginning at 0, ending at
+    # VM_BACKUP_ROTATION_COUNT-1
+    VM_BACKUP_DIR_NAMING_CONVENTION="$(TZ=$TIMEZONE date +%F_%k-%M-%S)"
     DEFAULT_VM_BACKUP_VOLUME="${VM_BACKUP_VOLUME}"
     DEFAULT_DISK_BACKUP_FORMAT="${DISK_BACKUP_FORMAT}"
     DEFAULT_VM_BACKUP_ROTATION_COUNT="${VM_BACKUP_ROTATION_COUNT}"
@@ -380,6 +382,7 @@ captureDefaultConfigurations() {
 }
 
 useDefaultConfigurations() {
+    TIMEZONE="${DEFAULT_TIMEZONE}"
     VM_BACKUP_VOLUME="${DEFAULT_VM_BACKUP_VOLUME}"
     DISK_BACKUP_FORMAT="${DEFAULT_DISK_BACKUP_FORMAT}"
     VM_BACKUP_ROTATION_COUNT="${DEFAULT_VM_BACKUP_ROTATION_COUNT}"
@@ -531,6 +534,7 @@ getVMDKs() {
 dumpVMConfigurations() {
     logger "info" "CONFIG - VERSION = ${VERSION_STRING}"
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
+    logger "info" "CONFIG - TIMEZONE = ${TIMEZONE}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
     logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
 	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
@@ -909,6 +913,7 @@ ghettoVCB() {
 
     if [[ "${USE_VM_CONF}" -eq 0 ]] ; then
         dumpVMConfigurations
+        logger "debug" "Timezone information: $(TZ=$TIMEZONE date)"
     fi
 
     #dump out all virtual machines allowing for spaces now
@@ -960,12 +965,13 @@ ghettoVCB() {
 
         #ensure default value if one is not selected or variable is null
         if [[ -z ${VM_BACKUP_DIR_NAMING_CONVENTION} ]] ; then
-            VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%k-%M-%S)"
+            VM_BACKUP_DIR_NAMING_CONVENTION="$(TZ=$TIMEZONE date +%F_%k-%M-%S)"
         fi
 
         if [[ "${USE_VM_CONF}" -eq 1 ]] && [[ ! -z ${VM_ID} ]]; then
             reConfigureBackupParam "${VM_NAME}"
             dumpVMConfigurations
+            logger "debug" "Timezone information: $(TZ=$TIMEZONE date)"
         fi
 
         VMFS_VOLUME=$(grep -E "\"${VM_NAME}\"" ${WORKDIR}/vms_list | awk -F ";" '{print $3}' | sed 's/\[//;s/\]//;s/"//g')
@@ -1438,8 +1444,8 @@ buildHeaders() {
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Subject: ghettoVCB - $(hostname -s) ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "Date: $( date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "Message-Id: <$( date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Date: $( TZ=$TIMEZONE date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Message-Id: <$( TZ=$TIMEZONE date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -en "\r\n" >> "${EMAIL_LOG_HEADER}"
 
