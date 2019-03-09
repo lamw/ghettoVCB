@@ -1,0 +1,37 @@
+
+####################### start ghettoVCB #######################
+# add this to /etc/rc.local.d/local.sh BEFORE the 'exit 0'!
+
+# create firewall config for ghettoVCB mail
+VCBDIR="/vmfs/volumes/<DATASTORE>/scripts/ghettoVCB"
+HOST=$(hostname -s)
+if [ -d ${VCBDIR} ]; then
+   if [ -f ${VCBDIR}/vcb-smtp.xml -a ! -f /etc/vmware/firewall/vcb-smtp.xml ] ; then
+      cp -p ${VCBDIR}/vcb-smtp.xml /etc/vmware/firewall/
+      localcli network firewall refresh
+   fi
+fi
+
+# create crontab entries for ghettoVCB script
+/bin/kill $(cat /var/run/crond.pid)
+CRONTAB="/var/spool/cron/crontabs/root"
+
+# cleanup current crontab
+grep -v "ghettoVCB" ${CRONTAB} >/tmp/crontab-root.tmp
+chmod 0444 /tmp/crontab-root.tmp
+chmod -t ${CRONTAB}
+mv /tmp/crontab-root.tmp ${CRONTAB}
+chmod +t ${CRONTAB}
+
+# ATTENTION: start time is in UTC, not local time!
+# to start at 19:33 local time
+# CET:  33 18 <--
+# CEST: 33 17
+echo "33   18   *   *   *   ${VCBDIR}/ghettoVCB-wrapper.sh >${VCBDIR}/${HOST}-wrapper.log 2>&1"  >> ${CRONTAB}
+/bin/crond
+
+# load multiextent module for 2gbsparse - needed with 5.0u3/5.1u1 and newer,
+# doesn't hurt on other systems
+localcli system module load -m multiextent
+
+######################## end ghettoVCB ########################
