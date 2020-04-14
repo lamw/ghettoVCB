@@ -176,7 +176,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+, 5.x & 6.x"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+, 5.x, 6.x, & 7.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -300,6 +300,7 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
+	7.0.0)                VER=7; break;;
         6.0.0|6.5.0|6.7.0)    VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
@@ -325,7 +326,7 @@ sanityCheck() {
     [[ ! -f /bin/tar ]] && TAR="busybox tar"
 
     # Enable multiextent VMkernel module if disk format is 2gbsparse (disabled by default in 5.1)
-    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 || "${VER}" == "6" ]]; then
+    if [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] && [[ "${VER}" -eq 5 || "${VER}" == "6" || "${VER}" == "7" ]]; then
         esxcli system module list | grep multiextent > /dev/null 2>&1
 	if [ $? -eq 1 ]; then
             logger "info" "multiextent VMkernel module is not loaded & is required for 2gbsparse, enabling ..."
@@ -893,7 +894,7 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" ]] ; then
+	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" || ${ESX_RELEASE} == "7.0.0" ]] ; then
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
             else
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
@@ -1176,7 +1177,7 @@ ghettoVCB() {
                             if [[ $? -eq 1 ]] ; then
                                 FORMAT_OPTION="UNKNOWN"
                                 if [[ "${DISK_BACKUP_FORMAT}" == "zeroedthick" ]] ; then
-                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
+                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]] ; then
                                         FORMAT_OPTION="zeroedthick"
                                     else
                                         FORMAT_OPTION=""
@@ -1186,7 +1187,7 @@ ghettoVCB() {
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "thin" ]] ; then
                                     FORMAT_OPTION="thin"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "eagerzeroedthick" ]] ; then
-                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
+                                    if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]]; then
                                         FORMAT_OPTION="eagerzeroedthick"
                                     else
                                         FORMAT_OPTION=""
@@ -1465,7 +1466,7 @@ sendMail() {
     if [[ "${EMAIL_LOG}" -eq 1 ]] || [[ "${EMAIL_ALERT}" -eq 1 ]] ; then
         SMTP=1
         #validate firewall has email port open for ESXi 5
-        if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] ; then
+        if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]]; then
             /sbin/esxcli network firewall ruleset rule list | awk '{print $5}' | grep "^${EMAIL_SERVER_PORT}$" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
