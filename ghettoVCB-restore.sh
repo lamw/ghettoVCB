@@ -5,14 +5,14 @@
 
 ###### DO NOT EDIT PASS THIS LINE ######
 
-LAST_MODIFIED_DATE=2015_04_04
+LAST_MODIFIED_DATE=2020_04_14
 VERSION=1
 VERSION_STRING=${LAST_MODIFIED_DATE}_${VERSION}
 
 printUsage() {
     echo "###############################################################################"
     echo "#"
-    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x, 5.x & 6.x"
+    echo "# ghettoVCB-restore for ESX/ESXi 3.5, 4.x, 5.x, 6.x & 7.x"
     echo "# Author: William Lam"
     echo "# http://www.virtuallyghetto.com/"
     echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -85,19 +85,20 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
+        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+, 6.x or 7.x!"
+        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+, 6.x or 7.x!"
         exit
     fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
 
     case "${ESX_VERSION}" in
+        7.0.0)                VER=7; break;;
         6.0.0|6.5.0|6.7.0)    VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x, 6.x & 7.x!"; exit 1; break;;
     esac
 
     TAR="tar"
