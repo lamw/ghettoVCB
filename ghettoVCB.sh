@@ -1467,7 +1467,7 @@ sendMail() {
         SMTP=1
         #validate firewall has email port open for ESXi 5
         if [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]]; then
-            /sbin/esxcli network firewall ruleset rule list | awk '{print $5}' | grep "^${EMAIL_SERVER_PORT}$" > /dev/null 2>&1
+            /sbin/esxcli network firewall ruleset rule list | awk -F'[ ]{2,}' '{print $5}' | grep "^${EMAIL_SERVER_PORT}$" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Please enable firewall rule for email traffic on port ${EMAIL_SERVER_PORT}\n"
                 logger "info" "Please refer to ghettoVCB documentation for ESXi 5 firewall configuration\n"
