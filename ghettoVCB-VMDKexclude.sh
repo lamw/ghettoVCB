@@ -458,7 +458,12 @@ findVMDK() {
 
 getVMDKs() {
     #get all VMDKs listed in .vmx file
-    VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -w -v -F -f "${VMDKS_TO_EXCLUDE}" 2>/dev/null | grep -i fileName | awk -F " " '{print $1}')
+    if [[ -s "${VMDKS_TO_EXCLUDE}" ]]; then
+	VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -w -v -F -f "${VMDKS_TO_EXCLUDE}" 2>/dev/null | grep -i fileName | awk -F " " '{print $1}')
+	else
+	VMDKS_FOUND=$(grep -iE '(^scsi|^ide|^sata|^nvme)' "${VMX_PATH}" | grep -i fileName | awk -F " " '{print $1}')
+	fi
+
     VMDKS=
     INDEP_VMDKS=
 
@@ -576,6 +581,20 @@ dumpVMConfigurations() {
 	else
 	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
 	fi
+   if [[ -s "${VMDKS_TO_EXCLUDE}" ]]; then
+	logger "info" "CONFIG - VMDKS_TO_EXCLUDE = ${VMDKS_TO_EXCLUDE}"
+	last_line=$(wc -l < ${VMDKS_TO_EXCLUDE})
+	current_line=0
+		while read -r line; do
+		current_line=$((current_line + 1))
+			if [[ $current_line -ne $last_line ]]; then
+				logger "info" "VMDK_EXCLUDED - ${line}"
+			else
+				logger "info" "VMDK_EXCLUDED - ${line}\n"
+			fi
+		done < ${VMDKS_TO_EXCLUDE}
+   fi
+
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
