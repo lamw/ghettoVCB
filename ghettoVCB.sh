@@ -295,6 +295,9 @@ sanityCheck() {
         echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
         exit 1
     fi
+    if vmkfstools 2>&1 -h | grep -F -e '--adaptertype' | grep -qF 'deprecated'; then
+        ADAPTERTYPE_DEPRECATED=1
+    fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
     ESX_RELEASE=$(uname -r)
@@ -1202,15 +1205,11 @@ ghettoVCB() {
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
 
-                                    ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+                                    [[ -z "$ADAPTERTYPE_DEPRECATED" ]] && ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+                                    [[ -n "${ADAPTER_FORMAT}" ]] && ADAPTER_FORMAT="-a ${ADAPTER_FORMAT}"
 
-                                    if  [[ -z "${FORMAT_OPTION}" ]] ; then
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
-                                    else
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
-                                    fi
+                                    logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" ${ADAPTER_FORMAT} ${FORMAT_OPTION} \"${DESTINATION_VMDK}\""
+                                    eval ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" ${ADAPTER_FORMAT} ${FORMAT_OPTION} "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
 
                                     VMDK_EXIT_CODE=$?
                                     kill "${TAIL_PID}"
