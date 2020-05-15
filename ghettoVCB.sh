@@ -1186,12 +1186,12 @@ ghettoVCB() {
                                         FORMAT_OPTION=""
                                     fi
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] ; then
-                                    FORMAT_OPTION="2gbsparse"
+                                    FORMAT_OPTION="-d 2gbsparse"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "thin" ]] ; then
-                                    FORMAT_OPTION="thin"
+                                    FORMAT_OPTION="-d thin"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "eagerzeroedthick" ]] ; then
                                     if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]]; then
-                                        FORMAT_OPTION="eagerzeroedthick"
+                                        FORMAT_OPTION="-d eagerzeroedthick"
                                     else
                                         FORMAT_OPTION=""
                                     fi
