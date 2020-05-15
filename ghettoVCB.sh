@@ -1209,7 +1209,7 @@ ghettoVCB() {
                                     [[ -n "${ADAPTER_FORMAT}" ]] && ADAPTER_FORMAT="-a ${ADAPTER_FORMAT}"
 
                                     logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" ${ADAPTER_FORMAT} ${FORMAT_OPTION} \"${DESTINATION_VMDK}\""
-                                    eval ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" ${ADAPTER_FORMAT} ${FORMAT_OPTION} "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
+                                    eval ${VMKFSTOOLS_CMD} -i '"${SOURCE_VMDK}"' ${ADAPTER_FORMAT} ${FORMAT_OPTION} '"${DESTINATION_VMDK}"' > '"${VMDK_OUTPUT}"' 2>&1
 
                                     VMDK_EXIT_CODE=$?
                                     kill "${TAIL_PID}"
