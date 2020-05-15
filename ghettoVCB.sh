@@ -295,7 +295,7 @@ sanityCheck() {
         echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
         exit 1
     fi
-    if ${VMKFSTOOLS_CMD} 2>&1 -h | grep -F -e '--adaptertype' | grep -qF 'deprecated'; then
+    if ${VMKFSTOOLS_CMD} 2>&1 -h | grep -F -e '--adaptertype' | grep -qF 'deprecated' || ! ${VMKFSTOOLS_CMD} 2>&1 -h | grep -F -e '--adaptertype'; then
         ADAPTERTYPE_DEPRECATED=1
     fi
 
