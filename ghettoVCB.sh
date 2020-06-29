@@ -267,21 +267,25 @@ sanityCheck() {
     if [[ ! -f "${VM_FILE}" ]] && [[ "${USE_VM_CONF}" -eq 0 ]] && [[ "${BACKUP_ALL_VMS}" -eq 0 ]]; then
         logger "info" "ERROR: \"${VM_FILE}\" is not valid VM input file!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -f "${VM_EXCLUSION_FILE}" ]] && [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]]; then
         logger "info" "ERROR: \"${VM_EXCLUSION_FILE}\" is not valid VM exclusion input file!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -d "${CONFIG_DIR}" ]] && [[ "${USE_VM_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${CONFIG_DIR}\" is not valid directory!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -f "${GLOBAL_CONF}" ]] && [[ "${USE_GLOBAL_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
         printUsage
+	exit 1
     fi
 
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
@@ -305,7 +309,7 @@ sanityCheck() {
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
+        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x, 6.x or 7.x!"; exit 1; break;;
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
