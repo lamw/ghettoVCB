@@ -373,7 +373,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+    # Added the NFS_IO_HACK values below
     DEFAULT_NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"
     DEFAULT_NFS_BACKUP_DELAY="${NFS_BACKUP_DELAY}"
@@ -400,7 +400,7 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+    # Added the NFS_IO_HACK values below
     ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK_ON}"
     NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
@@ -534,7 +534,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
     logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
-	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
+    if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
@@ -568,14 +568,14 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
-		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
-		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
-		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
-	else
-	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
-	fi
+    if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+        logger "info" "CONFIG - NFS_IO HACK_LOOP_MAX = ${NFS_IO_HACK_LOOP_MAX}"
+        logger "info" "CONFIG - NFS_IO HACK_SLEEP_TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+        logger "info" "CONFIG - NFS_BACKUP_DELAY = ${NFS_BACKUP_DELAY}"
+    else
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+    fi
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
@@ -1348,12 +1348,12 @@ ghettoVCB() {
             fi
         fi
 
-		# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
-		# Added the Brute-force delay in case it is needed.
-		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-			NfsIoHack
-			sleep "${NFS_BACKUP_DELAY}" 
-		fi 
+        # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
+        # Added the Brute-force delay in case it is needed.
+        if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+            NfsIoHack
+            sleep "${NFS_BACKUP_DELAY}" 
+        fi 
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
