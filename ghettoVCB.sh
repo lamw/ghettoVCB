@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_01_06
+LAST_MODIFIED_DATE=2020_07_02
 VERSION=4
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -1101,15 +1101,44 @@ ghettoVCB() {
             #extract all valid VMDK(s) from VM
             getVMDKs
 
+            CONTINUE_TO_BACKUP=1
+            VM_VMDK_FAILED=0
+
+            if [[ ${VMDK_FILES_TO_BACKUP} != "all" ]]; then
+            # check if requested VMDKs exist at all
+                OLD_IFS="${IFS}"
+                IFS=","
+                VMDK_FILES_TO_BACKUP_NEW=""
+                for k in ${VMDK_FILES_TO_BACKUP}; do
+                    VMDK_FILE_TO_BACKUP=$(echo "${k}" | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+                    for j in ${VMDKS}; do
+                        VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
+                        if [[ "${VMDK_FILE_TO_BACKUP}" == "${VMDK}" ]]; then
+                            VMDK_FILES_TO_BACKUP_NEW="${VMDK_FILES_TO_BACKUP_NEW},${VMDK_FILE_TO_BACKUP}"
+                            break
+                        fi
+                        logger "info" "WARNING: ${VMDK_FILE_TO_BACKUP} not found in VMDKs for ${VM_NAME}"
+                        VM_VMDK_FAILED=1
+                    done
+                done
+                IFS="${OLD_IFS}"
+                if [ -z "${VMDK_FILES_TO_BACKUP_NEW}" ]; then
+                    logger "info" "ERROR: No valid VMDKs in list of VMDKs to backup for ${VM_NAME}"
+                    VM_FAILED=1
+                    CONTINUE_TO_BACKUP=0
+                else
+                    VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP_NEW}"
+                fi
+            fi
+
             if [[ ! -z ${INDEP_VMDKS} ]] ; then
                 VM_HAS_INDEPENDENT_DISKS=1
             fi
 
             ORGINAL_VM_POWER_STATE=$(${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | tail -1)
-            CONTINUE_TO_BACKUP=1
 
             #section that will power down a VM prior to taking a snapshot and backup and power it back on
-            if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
+            if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] && [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
                 powerOff "${VM_NAME}" "${VM_ID}"
                 if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                     VM_FAILED=1
@@ -1122,7 +1151,6 @@ ghettoVCB() {
                 startTimer
 
                 SNAP_SUCCESS=1
-                VM_VMDK_FAILED=0
 
                 #powered on VMs only
                 if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
@@ -1411,15 +1439,20 @@ getFinalStatus() {
         FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
         LOG_STATUS="ERROR"
         EXIT=5
-    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then # $VMDK_FAILED doesn't matter in this case
         FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
         LOG_STATUS="ERROR"
         EXIT=6
-    elif [[ $VM_OK == 0 ]]; then
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
         FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
         LOG_STATUS="ERROR"
         EXIT=7
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
+        FINAL_STATUS="###### Final status: ERROR: All VMs experienced at least a partial failure! ######"
+        LOG_STATUS="ERROR"
+        EXIT=8
     fi
+    logger "debug" "VM_OK:${VM_OK}, VM_FAILED:${VM_FAILED}, VMDK_FAILED:${VMDK_FAILED}"
     logger "info" "$FINAL_STATUS\n"
 }
 
