@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2019_01_06
+LAST_MODIFIED_DATE=2020_07_02
 VERSION=4
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -176,7 +176,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+, 5.x, 6.x, & 7.x"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x, 5.x, 6.x & 7.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -291,8 +291,8 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "info" "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
+        logger "info" "ERROR: Unable to locate *vimsh*!"
+        echo "ERROR: Unable to locate *vimsh*!"
         exit 1
     fi
 
@@ -305,7 +305,7 @@ sanityCheck() {
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
+        *)              echo "ESX(i) version not supported!"; exit 1; break;;
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
