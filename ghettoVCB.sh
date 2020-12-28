@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2020_07_02
+LAST_MODIFIED_DATE=2020_10_10
 VERSION=4
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -176,7 +176,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x+, 5.x, 6.x, & 7.x"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x, 5.x, 6.x & 7.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -191,6 +191,7 @@ printUsage() {
         echo "   -a     Backup all VMs on host"
         echo "   -f     List of VMs to backup"
         echo "   -m     Name of VM to backup (overrides -f)"
+        echo "   -j     Job name to show in email report subject (makes sense only in conjunction with -f)"
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
@@ -198,8 +199,8 @@ printUsage() {
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
-        echo -e "\nBackup VMs stored in a list"
-        echo -e "\t$0 -f vms_to_backup"
+        echo -e "\nBackup list of VMs from a file (optionally include a job name for the email report)"
+        echo -e "\t$0 -f vms_to_backup [ -j myJob ]"
         echo -e "\nBackup a single VM"
         echo -e "\t$0 -m vm_to_backup"
         echo -e "\nBackup all VMs residing on this host"
@@ -267,21 +268,25 @@ sanityCheck() {
     if [[ ! -f "${VM_FILE}" ]] && [[ "${USE_VM_CONF}" -eq 0 ]] && [[ "${BACKUP_ALL_VMS}" -eq 0 ]]; then
         logger "info" "ERROR: \"${VM_FILE}\" is not valid VM input file!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -f "${VM_EXCLUSION_FILE}" ]] && [[ "${EXCLUDE_SOME_VMS}" -eq 1 ]]; then
         logger "info" "ERROR: \"${VM_EXCLUSION_FILE}\" is not valid VM exclusion input file!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -d "${CONFIG_DIR}" ]] && [[ "${USE_VM_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${CONFIG_DIR}\" is not valid directory!"
         printUsage
+	exit 1
     fi
 
     if [[ ! -f "${GLOBAL_CONF}" ]] && [[ "${USE_GLOBAL_CONF}" -eq 1 ]]; then
         logger "info" "ERROR: \"${GLOBAL_CONF}\" is not valid global configuration file!"
         printUsage
+	exit 1
     fi
 
     if [[ -f /usr/bin/vmware-vim-cmd ]]; then
@@ -291,8 +296,8 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "info" "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+ or 6.x!"
+        logger "info" "ERROR: Unable to locate *vimsh*!"
+        echo "ERROR: Unable to locate *vimsh*!"
         exit 1
     fi
 
@@ -300,12 +305,12 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
-	7.0.0)                VER=7; break;;
+	    7.0.0|7.0.1)          VER=7; break;;
         6.0.0|6.5.0|6.7.0)    VER=6; break;;
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x & 6.x!"; exit 1; break;;
+        *)              echo "ESX(i) version not supported!"; exit 1; break;;
     esac
 
     NEW_VIMCMD_SNAPSHOT="no"
@@ -373,7 +378,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+    # Added the NFS_IO_HACK values below
     DEFAULT_NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"
     DEFAULT_NFS_BACKUP_DELAY="${NFS_BACKUP_DELAY}"
@@ -400,8 +405,9 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+	  # Added the NFS_IO_HACK values below
     ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK}"
+    # Added the NFS_IO_HACK values below
     NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
     NFS_BACKUP_DELAY="${DEFAULT_NFS_BACKUP_DELAY}"
@@ -534,7 +540,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
     logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
-	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
+    if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
@@ -568,14 +574,14 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
-		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
-		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
-		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
-	else
-	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
-	fi
+    if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+        logger "info" "CONFIG - NFS_IO HACK_LOOP_MAX = ${NFS_IO_HACK_LOOP_MAX}"
+        logger "info" "CONFIG - NFS_IO HACK_SLEEP_TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+        logger "info" "CONFIG - NFS_BACKUP_DELAY = ${NFS_BACKUP_DELAY}"
+    else
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+    fi
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
@@ -619,8 +625,8 @@ Get_Final_Status_Sendemail() {
 }
 
 indexedRotate() {
-    local BACKUP_DIR_PATH=$1
-    local VM_TO_SEARCH_FOR=$2
+    local BACKUP_DIR_PATH="$1"
+    local VM_TO_SEARCH_FOR="$2"
 
     #default rotation if variable is not defined
     if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
@@ -630,10 +636,10 @@ indexedRotate() {
     #LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]*")
     i=${VM_BACKUP_ROTATION_COUNT}
     while [[ $i -ge 0 ]]; do
-        if [[ -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ]]; then
+        if [[ -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz" ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
-                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                rm -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -643,8 +649,8 @@ indexedRotate() {
                     logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
                 fi
             else
-                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                mv -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz" "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -655,10 +661,10 @@ indexedRotate() {
                 fi
             fi
         fi
-        if [[ -d ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ]]; then
+        if [[ -d "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i" ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
-                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                rm -rf "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -668,8 +674,8 @@ indexedRotate() {
                     logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 fi
             else
-                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                mv -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i" "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -679,7 +685,7 @@ indexedRotate() {
                     logger "info" "Failure moving ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
                 fi
                 if [[ $i -eq 0 ]]; then
-                    mkdir ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+                    mkdir "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 fi
             fi
         fi
@@ -689,8 +695,8 @@ indexedRotate() {
 }
 
 checkVMBackupRotation() {
-    local BACKUP_DIR_PATH=$1
-    local VM_TO_SEARCH_FOR=$2
+    local BACKUP_DIR_PATH="$1"
+    local VM_TO_SEARCH_FOR="$2"
 
     #default rotation if variable is not defined
     if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
@@ -713,35 +719,35 @@ checkVMBackupRotation() {
             logger "debug" "Removing $BACKUP_DIR_PATH/$i"
             rm -rf "$BACKUP_DIR_PATH/$i"
 
-			# Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
+            # Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
             # Added variables to the code to control the timers and loops.
             # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
             if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
                 NfsIoHack
             else
-				#NFS I/O error handling hack
-				if [[ $? -ne 0 ]] ; then
-					NFS_IO_HACK_COUNTER=0
-					NFS_IO_HACK_STATUS=0
-					NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
-
-					while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
-						sleep "${NFS_IO_HACK_SLEEP_TIMER}"
-						NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-						touch "${NFS_IO_HACK_FILECHECK}"
-
-						[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
-					done
-
-					NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
-
-					rm -rf "${NFS_IO_HACK_FILECHECK}"
-
-					if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
-					else
-						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
-					fi
+                #NFS I/O error handling hack
+                if [[ $? -ne 0 ]] ; then
+                    NFS_IO_HACK_COUNTER=0
+                    NFS_IO_HACK_STATUS=0
+                    NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+                    
+                    while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+                    	sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+                    	NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+                    	touch "${NFS_IO_HACK_FILECHECK}"
+                    
+                    	[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+                    done
+                    
+                    NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+                    
+                    rm -rf "${NFS_IO_HACK_FILECHECK}"
+                    
+                    if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+                    else
+                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+                    fi
                 fi
             fi
         fi
@@ -894,7 +900,7 @@ ghettoVCB() {
             #1 = readonly
             #0 = readwrite
             logger "debug" "Mounting NFS: ${NFS_SERVER}:${NFS_MOUNT} to /vmfs/volume/${NFS_LOCAL_NAME}"
-	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" || ${ESX_RELEASE} == "7.0.0" ]] ; then
+	    if [[ ${ESX_RELEASE} == "5.5.0" ]] || [[ ${ESX_RELEASE} == "6.0.0" || ${ESX_RELEASE} == "6.5.0" || ${ESX_RELEASE} == "6.7.0" || ${ESX_RELEASE} == "7.0.0" || ${ESX_RELEASE} == "7.0.1" ]] ; then
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_VERSION}" "${NFS_MOUNT}" 0 "${NFS_SERVER}"
             else
                 ${VMWARE_CMD} hostsvc/datastore/nas_create "${NFS_LOCAL_NAME}" "${NFS_SERVER}" "${NFS_MOUNT}" 0
@@ -1057,7 +1063,7 @@ ghettoVCB() {
     	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
-                if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
+                if [[ -z "${VM_NAME}" ]] || [[ -z "${NFS_LOCAL_NAME}" ]] || [[ -z "${NFS_VM_BACKUP_DIR}" ]]; then
                     logger "info" "ERROR: Variable BACKUP_DIR was not set properly, please ensure all required variables for non-persistent NFS backup option has been defined"
                     exit 1
                 fi
@@ -1065,7 +1071,7 @@ ghettoVCB() {
                 #non-nfs (SAN,LOCAL)
             else
                 BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
-                if [[ -z ${VM_BACKUP_VOLUME} ]]; then
+                if [[ -z "${VM_BACKUP_VOLUME}" ]]; then
                     logger "info" "ERROR: Variable VM_BACKUP_VOLUME was not defined"
                     exit 1
                 fi
@@ -1101,15 +1107,44 @@ ghettoVCB() {
             #extract all valid VMDK(s) from VM
             getVMDKs
 
+            CONTINUE_TO_BACKUP=1
+            VM_VMDK_FAILED=0
+
+            if [[ ${VMDK_FILES_TO_BACKUP} != "all" ]]; then
+            # check if requested VMDKs exist at all
+                OLD_IFS="${IFS}"
+                IFS=","
+                VMDK_FILES_TO_BACKUP_NEW=""
+                for k in ${VMDK_FILES_TO_BACKUP}; do
+                    VMDK_FILE_TO_BACKUP=$(echo "${k}" | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+                    for j in ${VMDKS}; do
+                        VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
+                        if [[ "${VMDK_FILE_TO_BACKUP}" == "${VMDK}" ]]; then
+                            VMDK_FILES_TO_BACKUP_NEW="${VMDK_FILES_TO_BACKUP_NEW},${VMDK_FILE_TO_BACKUP}"
+                            break
+                        fi
+                        logger "info" "WARNING: ${VMDK_FILE_TO_BACKUP} not found in VMDKs for ${VM_NAME}"
+                        VM_VMDK_FAILED=1
+                    done
+                done
+                IFS="${OLD_IFS}"
+                if [ -z "${VMDK_FILES_TO_BACKUP_NEW}" ]; then
+                    logger "info" "ERROR: No valid VMDKs in list of VMDKs to backup for ${VM_NAME}"
+                    VM_FAILED=1
+                    CONTINUE_TO_BACKUP=0
+                else
+                    VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP_NEW}"
+                fi
+            fi
+
             if [[ ! -z ${INDEP_VMDKS} ]] ; then
                 VM_HAS_INDEPENDENT_DISKS=1
             fi
 
             ORGINAL_VM_POWER_STATE=$(${VMWARE_CMD} vmsvc/power.getstate ${VM_ID} | tail -1)
-            CONTINUE_TO_BACKUP=1
 
             #section that will power down a VM prior to taking a snapshot and backup and power it back on
-            if [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
+            if [[ ${CONTINUE_TO_BACKUP} -eq 1 ]] && [[ ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] ; then
                 powerOff "${VM_NAME}" "${VM_ID}"
                 if [[ ${POWER_OFF_EC} -eq 1 ]]; then
                     VM_FAILED=1
@@ -1122,7 +1157,6 @@ ghettoVCB() {
                 startTimer
 
                 SNAP_SUCCESS=1
-                VM_VMDK_FAILED=0
 
                 #powered on VMs only
                 if [[ ! ${POWER_VM_DOWN_BEFORE_BACKUP} -eq 1 ]] && [[ "${ORGINAL_VM_POWER_STATE}" != "Powered off" ]]; then
@@ -1411,15 +1445,20 @@ getFinalStatus() {
         FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
         LOG_STATUS="ERROR"
         EXIT=5
-    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then # $VMDK_FAILED doesn't matter in this case
         FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
         LOG_STATUS="ERROR"
         EXIT=6
-    elif [[ $VM_OK == 0 ]]; then
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
         FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
         LOG_STATUS="ERROR"
         EXIT=7
+    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
+        FINAL_STATUS="###### Final status: ERROR: All VMs experienced at least a partial failure! ######"
+        LOG_STATUS="ERROR"
+        EXIT=8
     fi
+    logger "debug" "VM_OK:${VM_OK}, VM_FAILED:${VM_FAILED}, VMDK_FAILED:${VMDK_FAILED}"
     logger "info" "$FINAL_STATUS\n"
 }
 
@@ -1438,7 +1477,7 @@ buildHeaders() {
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "Subject: ghettoVCB - $(hostname -s) ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Subject: ghettoVCB - $(hostname -s) ${JOBNAME} ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Date: $( date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Message-Id: <$( date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1557,7 +1596,7 @@ if [[ "${EMAIL_FROM%%@*}" == "" ]] ; then
 fi
 
 #read user input
-while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:m:l:d:e:j:" ARGS; do
     case $ARGS in
         w)
             WORKDIR="${OPTARG}"
@@ -1568,6 +1607,9 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         f)
             VM_FILE="${OPTARG}"
+            ;;
+        j)
+            JOBNAME="${OPTARG}"
             ;;
         m)
             VM_FILE='${WORKDIR}/vm-input-list'
