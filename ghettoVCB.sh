@@ -410,8 +410,7 @@ useDefaultConfigurations() {
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
 	  # Added the NFS_IO_HACK values below
     ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK}"
-    # Added the NFS_IO_HACK values below
-    NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
+    NFS_IO_HACK_LOOP_MAX="${DEFAULT_NFS_IO_HACK_LOOP_MAX}"
     NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
     NFS_BACKUP_DELAY="${DEFAULT_NFS_BACKUP_DELAY}"
 }
@@ -721,36 +720,37 @@ checkVMBackupRotation() {
         if [[ $FOUND -eq 0 ]]; then
             logger "debug" "Removing $BACKUP_DIR_PATH/$i"
             rm -rf "$BACKUP_DIR_PATH/$i"
+	    RETVAL=$?
 
             # Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
             # Added variables to the code to control the timers and loops.
             # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
-            if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
+            if [[ $RETVAL -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
                 NfsIoHack
             else
                 #NFS I/O error handling hack
-                if [[ $? -ne 0 ]] ; then
-                    NFS_IO_HACK_COUNTER=0
-                    NFS_IO_HACK_STATUS=0
-                    NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
-                    
-                    while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
-                    	sleep "${NFS_IO_HACK_SLEEP_TIMER}"
-                    	NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-                    	touch "${NFS_IO_HACK_FILECHECK}"
-                    
-                    	[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
-                    done
-                    
-                    NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
-                    
-                    rm -rf "${NFS_IO_HACK_FILECHECK}"
-                    
-                    if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
-                    else
-                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
-                    fi
+                if [[ $RETVAL -ne 0 ]] ; then
+                  NFS_IO_HACK_COUNTER=0
+                  NFS_IO_HACK_STATUS=0
+                  NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+
+                  while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+                    sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+                    NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+                    touch "${NFS_IO_HACK_FILECHECK}"
+
+                    [[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+                  done
+
+                  NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+
+                  rm -rf "${NFS_IO_HACK_FILECHECK}"
+
+                  if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+                  else
+                    logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+                  fi
                 fi
             fi
         fi
@@ -1055,7 +1055,7 @@ ghettoVCB() {
         elif [[ -f "${VMX_PATH}" ]] && [[ ! -z "${VMX_PATH}" ]]; then
             if ls "${VMX_DIR}" | grep -q "\-delta\.vmdk" > /dev/null 2>&1; then
                 if [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 0 ]; then
-                    logger "error" "Snapshot found for ${VM_NAME}, backup will not take place\n"
+                    logger "info" "Snapshot found for ${VM_NAME}, backup will not take place\n"
                     VM_FAILED=1
                     continue
                 elif [ ${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP} -eq 1 ]; then
