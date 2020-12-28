@@ -191,6 +191,7 @@ printUsage() {
         echo "   -a     Backup all VMs on host"
         echo "   -f     List of VMs to backup"
         echo "   -m     Name of VM to backup (overrides -f)"
+        echo "   -j     Job name to show in email report subject (makes sense only in conjunction with -f)"
         echo "   -c     VM configuration directory for VM backups"
         echo "   -g     Path to global ghettoVCB configuration file"
         echo "   -l     File to output logging"
@@ -198,8 +199,8 @@ printUsage() {
         echo "   -d     Debug level [info|debug|dryrun] (default: info)"
         echo
         echo "(e.g.)"
-        echo -e "\nBackup VMs stored in a list"
-        echo -e "\t$0 -f vms_to_backup"
+        echo -e "\nBackup list of VMs from a file (optionally include a job name for the email report)"
+        echo -e "\t$0 -f vms_to_backup [ -j myJob ]"
         echo -e "\nBackup a single VM"
         echo -e "\t$0 -m vm_to_backup"
         echo -e "\nBackup all VMs residing on this host"
@@ -1475,7 +1476,7 @@ buildHeaders() {
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "Subject: ghettoVCB - $(hostname -s) ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "Subject: ghettoVCB - $(hostname -s) ${JOBNAME} ${FINAL_STATUS}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Date: $( date +"%a, %d %b %Y %T %z" )\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "Message-Id: <$( date -u +%Y%m%d%H%M%S ).$( dd if=/dev/urandom bs=6 count=1 2>/dev/null | hexdump -e '/1 "%02X"' )@$( hostname -f )>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "XMailer: ghettoVCB ${VERSION_STRING}\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1594,7 +1595,7 @@ if [[ "${EMAIL_FROM%%@*}" == "" ]] ; then
 fi
 
 #read user input
-while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
+while getopts ":af:c:g:w:m:l:d:e:j:" ARGS; do
     case $ARGS in
         w)
             WORKDIR="${OPTARG}"
@@ -1605,6 +1606,9 @@ while getopts ":af:c:g:w:m:l:d:e:" ARGS; do
             ;;
         f)
             VM_FILE="${OPTARG}"
+            ;;
+        j)
+            JOBNAME="${OPTARG}"
             ;;
         m)
             VM_FILE='${WORKDIR}/vm-input-list'
