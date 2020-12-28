@@ -377,7 +377,7 @@ captureDefaultConfigurations() {
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
     DEFAULT_RSYNC_LINK="${RSYNC_LINK}"
     DEFAULT_BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+    # Added the NFS_IO_HACK values below
     DEFAULT_NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     DEFAULT_NFS_IO_HACK_SLEEP_TIMER="${NFS_IO_HACK_SLEEP_TIMER}"
     DEFAULT_NFS_BACKUP_DELAY="${NFS_BACKUP_DELAY}"
@@ -404,7 +404,7 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
-	# Added the NFS_IO_HACK values below
+    # Added the NFS_IO_HACK values below
     ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK_ON}"
     NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
@@ -538,7 +538,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - GHETTOVCB_PID = ${GHETTOVCB_PID}"
     logger "info" "CONFIG - VM_BACKUP_VOLUME = ${VM_BACKUP_VOLUME}"
     logger "info" "CONFIG - ENABLE_NON_PERSISTENT_NFS = ${ENABLE_NON_PERSISTENT_NFS}"
-	if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
+    if [[ "${ENABLE_NON_PERSISTENT_NFS}" -eq 1 ]]; then
         logger "info" "CONFIG - UNMOUNT_NFS = ${UNMOUNT_NFS}"
         logger "info" "CONFIG - NFS_SERVER = ${NFS_SERVER}"
         logger "info" "CONFIG - NFS_VERSION = ${NFS_VERSION}"
@@ -572,14 +572,14 @@ dumpVMConfigurations() {
         logger "info" "CONFIG - EMAIL_TO = ${EMAIL_TO}"
         logger "info" "CONFIG - WORKDIR_DEBUG = ${WORKDIR_DEBUG}"
     fi
-	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-		logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}"
-		logger "info" "CONFIG - NFS IO HACK LOOP MAX = ${NFS_IO_HACK_LOOP_MAX}"
-		logger "info" "CONFIG - NFS IO HACK SLEEP TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
-		logger "info" "CONFIG - NFS BACKUP DELAY = ${NFS_BACKUP_DELAY}\n"
-	else
-	    logger "info" "CONFIG - ENABLE NFS IO HACK = ${ENABLE_NFS_IO_HACK}\n"
-	fi
+    if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+        logger "info" "CONFIG - NFS_IO HACK_LOOP_MAX = ${NFS_IO_HACK_LOOP_MAX}"
+        logger "info" "CONFIG - NFS_IO HACK_SLEEP_TIMER = ${NFS_IO_HACK_SLEEP_TIMER}"
+        logger "info" "CONFIG - NFS_BACKUP_DELAY = ${NFS_BACKUP_DELAY}"
+    else
+        logger "info" "CONFIG - ENABLE_NFS_IO_HACK = ${ENABLE_NFS_IO_HACK}"
+    fi
 }
 
 # Added the function below to allow reuse of the basics of the original hack in more places in the script.
@@ -623,8 +623,8 @@ Get_Final_Status_Sendemail() {
 }
 
 indexedRotate() {
-    local BACKUP_DIR_PATH=$1
-    local VM_TO_SEARCH_FOR=$2
+    local BACKUP_DIR_PATH="$1"
+    local VM_TO_SEARCH_FOR="$2"
 
     #default rotation if variable is not defined
     if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
@@ -634,10 +634,10 @@ indexedRotate() {
     #LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]*")
     i=${VM_BACKUP_ROTATION_COUNT}
     while [[ $i -ge 0 ]]; do
-        if [[ -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ]]; then
+        if [[ -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz" ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
-                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                rm -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -647,8 +647,8 @@ indexedRotate() {
                     logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz"
                 fi
             else
-                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                mv -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i.gz" "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1)).gz"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -659,10 +659,10 @@ indexedRotate() {
                 fi
             fi
         fi
-        if [[ -d ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ]]; then
+        if [[ -d "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i" ]]; then
             if [[ $i -eq $((VM_BACKUP_ROTATION_COUNT-1)) ]]; then
-                rm -rf ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                rm -rf "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -672,8 +672,8 @@ indexedRotate() {
                     logger "info" "Failure deleting ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 fi
             else
-                mv -f ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))
-				# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
+                mv -f "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i" "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
+                # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow at this step.
                 if [[ $? -ne 0 ]]  && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
                     NfsIoHack
                 fi
@@ -683,7 +683,7 @@ indexedRotate() {
                     logger "info" "Failure moving ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i to ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$((i+1))"
                 fi
                 if [[ $i -eq 0 ]]; then
-                    mkdir ${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i
+                    mkdir "${BACKUP_DIR_PATH}/${VM_TO_SEARCH_FOR}-$i"
                 fi
             fi
         fi
@@ -693,8 +693,8 @@ indexedRotate() {
 }
 
 checkVMBackupRotation() {
-    local BACKUP_DIR_PATH=$1
-    local VM_TO_SEARCH_FOR=$2
+    local BACKUP_DIR_PATH="$1"
+    local VM_TO_SEARCH_FOR="$2"
 
     #default rotation if variable is not defined
     if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
@@ -717,35 +717,35 @@ checkVMBackupRotation() {
             logger "debug" "Removing $BACKUP_DIR_PATH/$i"
             rm -rf "$BACKUP_DIR_PATH/$i"
 
-			# Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
+            # Added the NFS_IO_HACK check and function call here.  Also set the script to function the same, if the new feature is turned off.
             # Added variables to the code to control the timers and loops.
             # This code could be optimized based on the work in the NFS_IO_HACK function or that code could be used all the time with a few minor changes.
             if [[ $? -ne 0 ]] && [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then 
                 NfsIoHack
             else
-				#NFS I/O error handling hack
-				if [[ $? -ne 0 ]] ; then
-					NFS_IO_HACK_COUNTER=0
-					NFS_IO_HACK_STATUS=0
-					NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
-
-					while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
-						sleep "${NFS_IO_HACK_SLEEP_TIMER}"
-						NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
-						touch "${NFS_IO_HACK_FILECHECK}"
-
-						[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
-					done
-
-					NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
-
-					rm -rf "${NFS_IO_HACK_FILECHECK}"
-
-					if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
-						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
-					else
-						logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
-					fi
+                #NFS I/O error handling hack
+                if [[ $? -ne 0 ]] ; then
+                    NFS_IO_HACK_COUNTER=0
+                    NFS_IO_HACK_STATUS=0
+                    NFS_IO_HACK_FILECHECK="$BACKUP_DIR_PATH/nfs_io.check"
+                    
+                    while [[ "${NFS_IO_HACK_STATUS}" -eq 0 ]] && [[ "${NFS_IO_HACK_COUNTER}" -lt "${NFS_IO_HACK_LOOP_MAX}" ]]; do
+                    	sleep "${NFS_IO_HACK_SLEEP_TIMER}"
+                    	NFS_IO_HACK_COUNTER=$((NFS_IO_HACK_COUNTER+1))
+                    	touch "${NFS_IO_HACK_FILECHECK}"
+                    
+                    	[[ $? -eq 0 ]] && NFS_IO_HACK_STATUS=1
+                    done
+                    
+                    NFS_IO_HACK_SLEEP_TIME=$((NFS_IO_HACK_COUNTER*NFS_IO_HACK_SLEEP_TIMER))
+                    
+                    rm -rf "${NFS_IO_HACK_FILECHECK}"
+                    
+                    if [[ "${NFS_IO_HACK_STATUS}" -eq 1 ]] ; then
+                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds to work around NFS I/O error"
+                    else
+                    	logger "info" "Slept ${NFS_IO_HACK_SLEEP_TIME} seconds but failed work around for NFS I/O error"
+                    fi
                 fi
             fi
         fi
@@ -1061,7 +1061,7 @@ ghettoVCB() {
     	    #nfs case and backup to root path of your NFS mount
             if [[ ${ENABLE_NON_PERSISTENT_NFS} -eq 1 ]] ; then
                 BACKUP_DIR="/vmfs/volumes/${NFS_LOCAL_NAME}/${NFS_VM_BACKUP_DIR}/${VM_NAME}"
-                if [[ -z ${VM_NAME} ]] || [[ -z ${NFS_LOCAL_NAME} ]] || [[ -z ${NFS_VM_BACKUP_DIR} ]]; then
+                if [[ -z "${VM_NAME}" ]] || [[ -z "${NFS_LOCAL_NAME}" ]] || [[ -z "${NFS_VM_BACKUP_DIR}" ]]; then
                     logger "info" "ERROR: Variable BACKUP_DIR was not set properly, please ensure all required variables for non-persistent NFS backup option has been defined"
                     exit 1
                 fi
@@ -1069,7 +1069,7 @@ ghettoVCB() {
                 #non-nfs (SAN,LOCAL)
             else
                 BACKUP_DIR="${VM_BACKUP_VOLUME}/${VM_NAME}"
-                if [[ -z ${VM_BACKUP_VOLUME} ]]; then
+                if [[ -z "${VM_BACKUP_VOLUME}" ]]; then
                     logger "info" "ERROR: Variable VM_BACKUP_VOLUME was not defined"
                     exit 1
                 fi
@@ -1380,12 +1380,12 @@ ghettoVCB() {
             fi
         fi
 
-		# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
-		# Added the Brute-force delay in case it is needed.
-		if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-			NfsIoHack
-			sleep "${NFS_BACKUP_DELAY}" 
-		fi 
+        # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
+        # Added the Brute-force delay in case it is needed.
+        if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+            NfsIoHack
+            sleep "${NFS_BACKUP_DELAY}" 
+        fi 
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
