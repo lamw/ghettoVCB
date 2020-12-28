@@ -300,6 +300,9 @@ sanityCheck() {
         echo "ERROR: Unable to locate *vimsh*!"
         exit 1
     fi
+    if ${VMKFSTOOLS_CMD} 2>&1 -h | grep -F -e '--adaptertype' | grep -qF 'deprecated' || ! ${VMKFSTOOLS_CMD} 2>&1 -h | grep -F -e '--adaptertype'; then
+        ADAPTERTYPE_DEPRECATED=1
+    fi
 
     ESX_VERSION=$(vmware -v | awk '{print $3}')
     ESX_RELEASE=$(uname -r)
@@ -1217,12 +1220,12 @@ ghettoVCB() {
                                         FORMAT_OPTION=""
                                     fi
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "2gbsparse" ]] ; then
-                                    FORMAT_OPTION="2gbsparse"
+                                    FORMAT_OPTION="-d 2gbsparse"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "thin" ]] ; then
-                                    FORMAT_OPTION="thin"
+                                    FORMAT_OPTION="-d thin"
                                 elif [[ "${DISK_BACKUP_FORMAT}" == "eagerzeroedthick" ]] ; then
                                     if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]]; then
-                                        FORMAT_OPTION="eagerzeroedthick"
+                                        FORMAT_OPTION="-d eagerzeroedthick"
                                     else
                                         FORMAT_OPTION=""
                                     fi
@@ -1236,15 +1239,11 @@ ghettoVCB() {
                                     tail -f "${VMDK_OUTPUT}" &
                                     TAIL_PID=$!
 
-                                    ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+                                    [[ -z "$ADAPTERTYPE_DEPRECATED" ]] && ADAPTER_FORMAT=$(grep -i "ddb.adapterType" "${SOURCE_VMDK}" | awk -F "=" '{print $2}' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//;s/"//g')
+                                    [[ -n "${ADAPTER_FORMAT}" ]] && ADAPTER_FORMAT="-a ${ADAPTER_FORMAT}"
 
-                                    if  [[ -z "${FORMAT_OPTION}" ]] ; then
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
-                                    else
-                                        logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" -a \"${ADAPTER_FORMAT}\" -d \"${FORMAT_OPTION}\" \"${DESTINATION_VMDK}\""
-                                        ${VMKFSTOOLS_CMD} -i "${SOURCE_VMDK}" -a "${ADAPTER_FORMAT}" -d "${FORMAT_OPTION}" "${DESTINATION_VMDK}" > "${VMDK_OUTPUT}" 2>&1
-                                    fi
+                                    logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" ${ADAPTER_FORMAT} ${FORMAT_OPTION} \"${DESTINATION_VMDK}\""
+                                    eval ${VMKFSTOOLS_CMD} -i '"${SOURCE_VMDK}"' ${ADAPTER_FORMAT} ${FORMAT_OPTION} '"${DESTINATION_VMDK}"' > '"${VMDK_OUTPUT}"' 2>&1
 
                                     VMDK_EXIT_CODE=$?
                                     kill "${TAIL_PID}"
