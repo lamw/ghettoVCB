@@ -405,8 +405,9 @@ useDefaultConfigurations() {
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
     RSYNC_LINK="${RSYNC_LINK}"
     BACKUP_FILES_CHMOD="${BACKUP_FILES_CHMOD}"
+	  # Added the NFS_IO_HACK values below
+    ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK}"
     # Added the NFS_IO_HACK values below
-    ENABLE_NFS_IO_HACK="${DEFAULT_ENABLE_NFS_IO_HACK_ON}"
     NFS_IO_HACK_LOOP_MAX="${NFS_IO_HACK_LOOP_MAX}"
     NFS_IO_HACK_SLEEP_TIMER="${DEFAULT_NFS_IO_HACK_SLEEP_TIMER}"
     NFS_BACKUP_DELAY="${DEFAULT_NFS_BACKUP_DELAY}"
@@ -1381,12 +1382,12 @@ ghettoVCB() {
             fi
         fi
 
-        # Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
-        # Added the Brute-force delay in case it is needed.
-        if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
-            NfsIoHack
-            sleep "${NFS_BACKUP_DELAY}" 
-        fi 
+	# Added the NFS_IO_HACK check and function call here.  Some NAS devices slow during the write of the files.
+	# Added the Brute-force delay in case it is needed.
+	if [[ "${ENABLE_NFS_IO_HACK}" -eq 1 ]]; then
+		NfsIoHack
+		sleep "${NFS_BACKUP_DELAY}" 
+	fi 
     done
     # UNTESTED CODE
     # Why is this outside of the main loop & it looks like checkVMBackupRotation() could be called twice?
