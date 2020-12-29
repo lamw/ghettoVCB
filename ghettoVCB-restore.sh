@@ -85,8 +85,8 @@ sanityCheck() {
         VMWARE_CMD=/bin/vim-cmd
         VMKFSTOOLS_CMD=/sbin/vmkfstools
     else
-        logger "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+, 6.x or 7.x!"
-        echo "ERROR: Unable to locate *vimsh*! You're not running ESX(i) 3.5+, 4.x+, 5.x+, 6.x or 7.x!"
+        logger "ERROR: Unable to locate *vimsh*!"
+        echo "ERROR: Unable to locate *vimsh*!"
         exit
     fi
 
@@ -98,7 +98,7 @@ sanityCheck() {
         5.0.0|5.1.0|5.5.0)    VER=5; break;;
         4.0.0|4.1.0)          VER=4; break;;
         3.5.0|3i)             VER=3; break;;
-        *)              echo "You're not running ESX(i) 3.5, 4.x, 5.x, 6.x & 7.x!"; exit 1; break;;
+        *)              echo "ESX(i) version not supported!"; exit 1; break;;
     esac
 
     TAR="tar"
@@ -178,12 +178,14 @@ ghettoVCBrestore() {
                 VM_DISPLAY_NAME=$(grep -i "displayName" "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | awk -F '=' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
                 VM_ORIG_FOLDER_NAME=$(echo "${VM_FOLDER_NAME}" | sed 's/-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-1].*//g')
                 VM_VMX_NAME=${VM_ORIG_VMX}
-		VM_RESTORE_FOLDER_NAME=${VM_ORIG_FOLDER_NAME}
-		VM_RESTORE_VMX=${VM_ORIG_VMX}
+                VM_RESTORE_FOLDER_NAME=${VM_ORIG_FOLDER_NAME}
+                VM_RESTORE_VMX=${VM_ORIG_VMX}
+                VM_RESTORE_NVRAM=${VM_DISPLAY_NAME}.nvram
             else
                 VM_DISPLAY_NAME=${RESTORE_VM_NAME}
                 VM_RESTORE_FOLDER_NAME=${RESTORE_VM_NAME}
                 VM_RESTORE_VMX=${RESTORE_VM_NAME}.vmx
+                VM_RESTORE_NVRAM=${RESTORE_VM_NAME}.nvram
             fi
 
             #figure out the VMDK rename, esepcially important if original backup had VMDKs spread across multiple datastores
@@ -283,11 +285,13 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                 mkdir -p "${VM_RESTORE_DIR}"
             fi
 
-            #copy .vmx file
+            #copy .vmx & .nvram file
             logger "Copying \"${VM_ORIG_VMX}\" file ..."
             if [ ! "${DEVEL_MODE}" == "2" ]; then
                 cp "${VM_TO_RESTORE}/${VM_ORIG_VMX}" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
                 sed -i "s/displayName =.*/displayName = \"${VM_DISPLAY_NAME}\"/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
+
+                cp "${VM_TO_RESTORE}/${VM_RESTORE_NVRAM}" "${VM_RESTORE_DIR}/${VM_RESTORE_NVRAM}"
             fi
 
             #loop through all VMDK(s) and vmkfstools copy to destination
