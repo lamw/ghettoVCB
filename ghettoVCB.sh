@@ -1104,6 +1104,14 @@ ghettoVCB() {
 
             cp "${VMX_PATH}" "${VM_BACKUP_DIR}"
 
+            # Retrieve nvram file from VMX and back up
+            VM_NVRAM_FILE=$(grep "nvram" "${VMX_PATH}" | awk -F "\"" '{print $2}')
+            VM_NVRAM_PATH="${VMX_DIR}/${VM_NVRAM_FILE}"
+
+            if [ -e ${VM_NVRAM_PATH} ]; then
+                cp "${VM_NVRAM_PATH}" "${VM_BACKUP_DIR}"
+            fi
+
             #new variable to keep track on whether VM has independent disks
             VM_HAS_INDEPENDENT_DISKS=0
 
