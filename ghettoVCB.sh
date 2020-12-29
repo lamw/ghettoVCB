@@ -8,8 +8,8 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2020_10_10
-VERSION=4
+LAST_MODIFIED_DATE=2020_12_28
+VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
 VM_BACKUP_VOLUME=/vmfs/volumes/mini-local-datastore-hdd/backups
@@ -1251,7 +1251,7 @@ ghettoVCB() {
                                     [[ -n "${ADAPTER_FORMAT}" ]] && ADAPTER_FORMAT="-a ${ADAPTER_FORMAT}"
 
                                     logger "debug" "${VMKFSTOOLS_CMD} -i \"${SOURCE_VMDK}\" ${ADAPTER_FORMAT} ${FORMAT_OPTION} \"${DESTINATION_VMDK}\""
-                                    eval ${VMKFSTOOLS_CMD} -i '"${SOURCE_VMDK}"' ${ADAPTER_FORMAT} ${FORMAT_OPTION} '"${DESTINATION_VMDK}"' > '"${VMDK_OUTPUT}"' 2>&1
+                                    eval ${VMKFSTOOLS_CMD} -i '"${SOURCE_VMDK}"' ${ADAPTER_FORMAT} ${FORMAT_OPTION} '"${DESTINATION_VMDK}"' > "${VMDK_OUTPUT}" 2>&1
 
                                     VMDK_EXIT_CODE=$?
                                     kill "${TAIL_PID}"
