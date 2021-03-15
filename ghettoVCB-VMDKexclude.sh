@@ -223,7 +223,7 @@ logger() {
     LOG_TYPE=$1
     MSG=$2
 
-    if [[ "${LOG_LEVEL}" == "debug" ]] && [[ "${LOG_TYPE}" == "debug" ]] || [[ "${LOG_TYPE}" == "info" ]] || [[ "${LOG_TYPE}" == "dryrun" ]]; then
+    if [[ "${LOG_LEVEL}" == "debug" ]] && [[ "${LOG_TYPE}" == "debug" ]] || [[ "${LOG_TYPE}" == "info" ]] || [[ "${LOG_TYPE}" == "error" ]] ||[[ "${LOG_TYPE}" == "dryrun" ]]; then
         TIME=$(date +%F" "%H:%M:%S)
         if [[ "${LOG_TO_STDOUT}" -eq 1 ]] ; then
             echo -e "${TIME} -- ${LOG_TYPE}: ${MSG}"

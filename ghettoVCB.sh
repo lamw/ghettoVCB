@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2020_12_28
+LAST_MODIFIED_DATE=2021_03_15
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -958,7 +958,7 @@ ghettoVCB() {
         fi
 
         if [[ "${IGNORE_VM}" -eq 0 ]] && [[ -n "${PROBLEM_VMS}" ]] ; then
-            if [[ "$(echo $PROBLEM_VMS | sed "s@$VM_NAME@@")" != "$PROBLEM_VMS" ]] ; then
+	    if [[ " ${PROBLEM_VMS} " == *" ${VM_NAME} "* ]] ; then
                 logger "info" "Ignoring ${VM_NAME} as a problem VM\n"
                 IGNORE_VM=1
                 #A VM ignored due to a problem, should be treated as a failure
