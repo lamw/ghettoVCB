@@ -1260,7 +1260,7 @@ ghettoVCB() {
                                     echo
                                     rm "${VMDK_OUTPUT}"
 
-                                    if [[ "${VMDK_EXIT_CODE}" != 0 ]] ; then
+                                    if [[ "${VMDK_EXIT_CODE}" -ne 0 ]] ; then
                                         logger "info" "ERROR: error in backing up of \"${SOURCE_VMDK}\" for ${VM_NAME}"
                                         VM_VMDK_FAILED=1
                                     fi
@@ -1436,31 +1436,31 @@ getFinalStatus() {
         FINAL_STATUS="###### Final status: OK, only a dryrun. ######"
         LOG_STATUS="OK"
         EXIT=0
-    elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
+    elif [[ $VM_OK -eq 1 ]] && [[ $VM_FAILED -eq 0 ]] && [[ $VMDK_FAILED -eq 0 ]]; then
         FINAL_STATUS="###### Final status: All VMs backed up OK! ######"
         LOG_STATUS="OK"
         EXIT=0
-    elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
+    elif [[ $VM_OK -eq 1 ]] && [[ $VM_FAILED -eq 0 ]] && [[ $VMDK_FAILED -eq 1 ]]; then
         FINAL_STATUS="###### Final status: WARNING: All VMs backed up, but some disk(s) failed! ######"
         LOG_STATUS="WARNING"
         EXIT=3
-    elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 0 ]]; then
+    elif [[ $VM_OK -eq 1 ]] && [[ $VM_FAILED -eq 1 ]] && [[ $VMDK_FAILED -eq 0 ]]; then
         FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up! ######"
         LOG_STATUS="ERROR"
         EXIT=4
-    elif [[ $VM_OK == 1 ]] && [[ $VM_FAILED == 1 ]] && [[ $VMDK_FAILED == 1 ]]; then
+    elif [[ $VM_OK -eq 1 ]] && [[ $VM_FAILED -eq 1 ]] && [[ $VMDK_FAILED -eq 1 ]]; then
         FINAL_STATUS="###### Final status: ERROR: Only some of the VMs backed up, and some disk(s) failed! ######"
         LOG_STATUS="ERROR"
         EXIT=5
-    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 1 ]]; then # $VMDK_FAILED doesn't matter in this case
+    elif [[ $VM_OK -eq 0 ]] && [[ $VM_FAILED -eq 1 ]]; then # $VMDK_FAILED doesn't matter in this case
         FINAL_STATUS="###### Final status: ERROR: All VMs failed! ######"
         LOG_STATUS="ERROR"
         EXIT=6
-    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 0 ]]; then
+    elif [[ $VM_OK -eq 0 ]] && [[ $VM_FAILED -eq 0 ]] && [[ $VMDK_FAILED -eq 0 ]]; then
         FINAL_STATUS="###### Final status: ERROR: No VMs backed up! ######"
         LOG_STATUS="ERROR"
         EXIT=7
-    elif [[ $VM_OK == 0 ]] && [[ $VM_FAILED == 0 ]] && [[ $VMDK_FAILED == 1 ]]; then
+    elif [[ $VM_OK -eq 0 ]] && [[ $VM_FAILED -eq 0 ]] && [[ $VMDK_FAILED -eq 1 ]]; then
         FINAL_STATUS="###### Final status: ERROR: All VMs experienced at least a partial failure! ######"
         LOG_STATUS="ERROR"
         EXIT=8
