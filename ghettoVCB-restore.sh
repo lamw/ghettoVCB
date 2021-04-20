@@ -169,6 +169,7 @@ ghettoVCBrestore() {
         if [ -d "${VM_TO_RESTORE}" ]; then
             #figure out the contents of the directory (*.vmdk,*-flat.vmdk,*.vmx)
             VM_ORIG_VMX=$(ls "${VM_TO_RESTORE}" | grep ".vmx")
+            VM_ORIG_NVRAM=$(ls "${VM_TO_RESTORE}" | grep ".nvram")
             VM_VMDK_DESCRS=$(ls "${VM_TO_RESTORE}" | grep ".vmdk" | grep -v "\-flat.vmdk")
             VMDKS_FOUND=$(grep -iE '(scsi|ide|sata)' "${VM_TO_RESTORE}/${VM_ORIG_VMX}" | grep -i fileName | awk -F " " '{print $1}')
             VM_FOLDER_NAME=$(echo "${VM_TO_RESTORE##*/}")
@@ -291,7 +292,8 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                 cp "${VM_TO_RESTORE}/${VM_ORIG_VMX}" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
                 sed -i "s/displayName =.*/displayName = \"${VM_DISPLAY_NAME}\"/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
 
-                cp "${VM_TO_RESTORE}/${VM_RESTORE_NVRAM}" "${VM_RESTORE_DIR}/${VM_RESTORE_NVRAM}"
+                cp "${VM_TO_RESTORE}/${VM_ORIG_NVRAM}" "${VM_RESTORE_DIR}/${VM_RESTORE_NVRAM}"
+                sed -i "s/nvram =.*/nvram = \"${VM_RESTORE_NVRAM}\"/g" "${VM_RESTORE_DIR}/${VM_RESTORE_VMX}"
             fi
 
             #loop through all VMDK(s) and vmkfstools copy to destination
