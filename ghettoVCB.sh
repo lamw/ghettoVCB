@@ -1,6 +1,6 @@
 # Author: William Lam
 # Created Date: 11/17/2008
-# http://www.virtuallyghetto.com/
+# http://www.williamlam.com/
 # https://github.com/lamw/ghettoVCB
 # http://communities.vmware.com/docs/DOC-8760
 
@@ -8,7 +8,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2021_03_18
+LAST_MODIFIED_DATE=2021_07_09
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
