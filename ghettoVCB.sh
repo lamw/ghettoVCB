@@ -1127,16 +1127,26 @@ ghettoVCB() {
                 IFS=","
                 VMDK_FILES_TO_BACKUP_NEW=""
                 for k in ${VMDK_FILES_TO_BACKUP}; do
+                    # this list is comma separated: "DISK1,DISK2,..."
                     VMDK_FILE_TO_BACKUP=$(echo "${k}" | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+                    OLD_IFS2="${IFS}"
+                    IFS=":"
+                    VMDK_FOUND=0
                     for j in ${VMDKS}; do
+                        # this list is colon separated: "${DISK}###${DISK_SIZE}:${VMDKS}"
                         VMDK=$(echo "${j}" | awk -F "###" '{print $1}')
                         if [[ "${VMDK_FILE_TO_BACKUP}" == "${VMDK}" ]]; then
                             VMDK_FILES_TO_BACKUP_NEW="${VMDK_FILES_TO_BACKUP_NEW},${VMDK_FILE_TO_BACKUP}"
+                            VMDK_FOUND=1
                             break
                         fi
-                        logger "info" "WARNING: ${VMDK_FILE_TO_BACKUP} not found in VMDKs for ${VM_NAME}"
-                        VM_VMDK_FAILED=1
                     done
+                    IFS="${OLD_IFS2}"
+                    if [[ "${VMDK_FOUND}" -ne 1 ]]; then
+                    	logger "info" "WARNING: ${VMDK_FILE_TO_BACKUP} not found in VMDKs for ${VM_NAME}"
+                    	VM_VMDK_FAILED=1
+                    	break
+                    fi
                 done
                 IFS="${OLD_IFS}"
                 if [ -z "${VMDK_FILES_TO_BACKUP_NEW}" ]; then
