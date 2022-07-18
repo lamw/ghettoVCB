@@ -14,6 +14,8 @@ You can quickly install/update ghettoVCB by downloading and installing either th
 
 More details on using the ghettoVCB VIB/Offline Bundle can be found in this blog post [here](https://www.virtuallyghetto.com/2015/05/ghettovcb-vib-offline-bundle-for-esxi.html)
 
+If the installation takes some time. Just wait. This is normal.
+
 Install VIB
 ```
 esxcli software vib install -v /vghetto-ghettoVCB.vib -f
