@@ -1,3 +1,4 @@
+#!/bin/sh
 # Author: William Lam
 # Created Date: 11/17/2008
 # http://www.williamlam.com/
@@ -308,6 +309,7 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
+        8.0.0)                      VER=8; break;;
         7.0.0|7.0.1|7.0.2|7.0.3)    VER=7; break;;
         6.0.0|6.5.0|6.7.0)          VER=6; break;;
         5.0.0|5.1.0|5.5.0)          VER=5; break;;
