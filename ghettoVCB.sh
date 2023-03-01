@@ -5,11 +5,23 @@
 # https://github.com/lamw/ghettoVCB
 # http://communities.vmware.com/docs/DOC-8760
 
+# Modified by: IntEx 
+# Modified date: 03/01/2023
+# Modification: 
+#    Do not set WARNING/ERROR status for VMs with independent disks,
+#    which does not have these disks included in VMDK_FILES_TO_BACKUP.
+#
+# Note: All modifications are enclosed in "# IntEx ... # /IntEx" sections.
+
 ##################################################################
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2021_10_20
+# IntEx - last modified
+#LAST_MODIFIED_DATE=2021_10_20
+LAST_MODIFIED_DATE=2023_03_01
+# /IntEx
+
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -1123,6 +1135,10 @@ ghettoVCB() {
             CONTINUE_TO_BACKUP=1
             VM_VMDK_FAILED=0
 
+            # IntEx - preserve original VMDK_FILES_TO_BACKUP
+            VMDK_FILES_TO_BACKUP_ORIGINAL="${VMDK_FILES_TO_BACKUP}"
+            # /IntEx
+
             if [[ ${VMDK_FILES_TO_BACKUP} != "all" ]]; then
             # check if requested VMDKs exist at all
                 OLD_IFS="${IFS}"
@@ -1329,6 +1345,29 @@ ghettoVCB() {
                 else
                     checkVMBackupRotation "${BACKUP_DIR}" "${VM_NAME}"
                 fi
+                
+                # IntEx - check if backup VMDK list contains independent disk
+                BACKUP_INDEPENDENT_VMDK=0
+                if [[ ${VMDK_FILES_TO_BACKUP_ORIGINAL} != "all" ]]; then
+                    # backup selected disks, check if they are independent...
+                    PREV_IFS="${IFS}"
+                    IFS=","
+                    VMDK_FILES_TO_BACKUP_NEW=""
+                    for i in ${VMDK_FILES_TO_BACKUP_ORIGINAL}; do
+                        # this list is comma separated: "DISK1,DISK2,..."
+                        VMDK_FILE_TO_BACKUP=$(echo "${i}" | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+                        if [[ $(echo "${INDEP_VMDKS}" | grep -c "${VMDK_FILE_TO_BACKUP}") -gt 0 ]] ; then
+                            # independent disk list contains disk for backup
+                            BACKUP_INDEPENDENT_VMDK=1
+                        fi
+                    done
+                    IFS="${PREV_IFS}"
+                else
+                    # backup all disks = including independent disks
+                    BACKUP_INDEPENDENT_VMDK=1
+                fi
+                # /IntEx
+
                 IFS=${TMP_IFS}
                 VMDKS=""
                 INDEP_VMDKS=""
@@ -1342,7 +1381,10 @@ ghettoVCB() {
                     logger "info" "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup!\n"
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "ERROR: Unable to backup ${VM_NAME} due to error in VMDK backup" >> ${VM_BACKUP_DIR}/STATUS.error
                     VMDK_FAILED=1
-                elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
+                # IntEx - do not warn about independent disks if they are not included in backup VMDK list
+                #elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] ; then
+                elif [[ ${VM_HAS_INDEPENDENT_DISKS} -eq 1 ]] && [[ ${BACKUP_INDEPENDENT_VMDK} -eq 1 ]] ; then
+                # /IntEx
                     logger "info" "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up!\n";
                     [[ ${ENABLE_COMPRESSION} -eq 1 ]] && [[ $COMPRESSED_OK -eq 1 ]] || echo "WARN: ${VM_NAME} has some Independent VMDKs that can not be backed up" > ${VM_BACKUP_DIR}/STATUS.warn
                     VMDK_FAILED=1
