@@ -12,9 +12,18 @@ Latest ghettoVCB VIB and Offline Bundle can be downloaded from [here](https://gi
 
 You can quickly install/update ghettoVCB by downloading and installing either the [VIB or offline bundle](https://github.com/lamw/ghettoVCB/releases) using the following commands. If you wish to update to latest ghettoVCB release and are using the ghettovcb.conf file and wish to have the setting persist, make sure to use the *update* command instead of *install*
 
-More details on using the ghettoVCB VIB/Offline Bundle can be found in this blog post [here](https://www.williamlam.com/2015/05/ghettovcb-vib-offline-bundle-for-esxi.html)
+Once installed, you will find all ghettoVCB configuration files located in:
+```console
+/etc/ghettovcb/ghettoVCB.conf
+/etc/ghettovcb/ghettoVCB-restore_vm_restore_configuration_template
+/etc/ghettovcb/ghettoVCB-vm_backup_configuration_template
+```
 
-If the installation takes some time. Just wait. This is normal.
+Both ghettoVCB and ghettoVCB-restore scripts are located in:
+```console
+/opt/ghettovcb/bin/ghettoVCB.sh
+/opt/ghettovcb/bin/ghettoVCB-restore.sh
+```
 
 Install VIB
 ```
@@ -35,6 +44,21 @@ Update offline bundle
 ```
 esxcli software vib update -d /vghetto-ghettoVCB-offline-bundle.zip -f
 ```
+
+Retrieve installation
+```console
+esxcli software vib get -n ghettoVCB
+```
+
+## Uninstall
+
+Remove ghettoVCB
+
+```console
+esxcli software vib remove -n ghettoVCB
+```
+
+> Note: If the installation takes some time. Just wait. This is normal.
 
 ## Build VIB/Offline Bundle
 
