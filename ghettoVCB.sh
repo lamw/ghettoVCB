@@ -9,7 +9,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2023_04_21
+LAST_MODIFIED_DATE=2023_09_29
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -177,7 +177,7 @@ VM_BACKUP_DIR_NAMING_CONVENTION="$(date +%F_%H-%M-%S)"
 printUsage() {
         echo "###############################################################################"
         echo "#"
-        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x, 5.x, 6.x & 7.x"
+        echo "# ghettoVCB for ESX/ESXi 3.5, 4.x, 5.x, 6.x, 7.x & 8.x"
         echo "# Author: William Lam"
         echo "# http://www.virtuallyghetto.com/"
         echo "# Documentation: http://communities.vmware.com/docs/DOC-8760"
@@ -309,7 +309,7 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
-        8.0.0|8.0.1)                VER=8; break;;
+        8.0.0|8.0.1|8.0.2)          VER=8; break;;
         7.0.0|7.0.1|7.0.2|7.0.3)    VER=7; break;;
         6.0.0|6.5.0|6.7.0)          VER=6; break;;
         5.0.0|5.1.0|5.5.0)          VER=5; break;;
