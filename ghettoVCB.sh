@@ -1313,9 +1313,12 @@ ghettoVCB() {
                 if [[ ${ENABLE_COMPRESSION} -eq 1 ]] ; then
                     COMPRESSED_ARCHIVE_FILE="${BACKUP_DIR}/${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}.gz"
 
-                    logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."
-                    ${TAR} -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
-
+                    logger "info" "Compressing VM backup \"${COMPRESSED_ARCHIVE_FILE}\"..."                    
+		    # original compression using single-threaded gzip only
+		    # ${TAR} -cz -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" -f "${COMPRESSED_ARCHIVE_FILE}"
+      		    # new compression with pigz utilizing more CPU cores resulting in drastically faster compression (here: 24 cores, "-p 24")
+	            ${TAR} cf -C "${BACKUP_DIR}" "${VM_NAME}-${VM_BACKUP_DIR_NAMING_CONVENTION}" | pigz -p 24 > "${COMPRESSED_ARCHIVE_FILE}"
+			
                     # verify compression
                     if [[ $? -eq 0 ]] && [[ -f "${COMPRESSED_ARCHIVE_FILE}" ]]; then
                         logger "info" "Successfully compressed backup for ${VM_NAME}!\n"
