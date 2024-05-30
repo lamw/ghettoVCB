@@ -1,6 +1,6 @@
 # Build ghettoVCB VIB/Offline Bundle
 
-The `build.sh` shell script is used to create both the ghettoVCB VIB and Offline Bundle which is available for download in the [ghettoVCB Releases page](https://github.com/lamw/ghettoVCB/releases). For those interested, you can also use this script to generate your own VIB/Offline Bundled which automatically pulls from the latest ghettoVCB source code.
+The `build.sh` shell script is used to create both the ghettoVCB VIB and Offline Bundle for both pre-ESXi 8.x and ESXi 8.x+ which is available for download in the [ghettoVCB Releases page](https://github.com/lamw/ghettoVCB/releases). For those interested, you can also use this script to generate your own VIB/Offline Bundled which automatically pulls from the latest ghettoVCB source code.
 
 The build script requires `docker` to be installed and uses the [vibauthor docker](https://hub.docker.com/repository/docker/lamw/vibauthor) container to generate the VIB/Offline Bundle.
 
@@ -144,12 +144,14 @@ Successfully built 7e1196135f15
 Successfully tagged ghettovcb:latest
 ```
 
-Upon success, you should have a new directory called `artifacts` which contains both the VIB and Offline Bundle
+Upon success, you should have a new directory called `artifacts` which contains both the VIBs and Offline Bundles
 
 ```code
 ❯ tree artifacts
 
 artifacts
-├── vghetto-ghettoVCB-offline-bundle.zip
-└── vghetto-ghettoVCB.vib
+├── vghetto-ghettoVCB-7x.vib
+├── vghetto-ghettoVCB-8x.vib
+├── vghetto-ghettoVCB-offline-bundle-7x.zip
+└── vghetto-ghettoVCB-offline-bundle-8x.zip
 ```
