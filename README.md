@@ -10,13 +10,13 @@ Latest ghettoVCB VIB and Offline Bundle can be downloaded from [here](https://gi
 
 ## Install
 
-You can quickly install/update ghettoVCB by downloading and installing either the [VIB or offline bundle](https://github.com/lamw/ghettoVCB/releases) using the following commands. If you wish to update to latest ghettoVCB release and are using the ghettovcb.conf file and wish to have the setting persist, make sure to use the *update* command instead of *install*
+You can quickly install/update ghettoVCB by downloading and installing either the [VIB or offline bundle](https://github.com/lamw/ghettoVCB/releases) using the following commands. If you wish to update to latest ghettoVCB release and are using the ghettovcb.conf file and wish to have your settings persist, make sure to use the *update* command instead of *install*
 
 Once installed, you will find all ghettoVCB configuration files located in:
 ```console
-/etc/ghettovcb/ghettoVCB.conf
-/etc/ghettovcb/ghettoVCB-restore_vm_restore_configuration_template
-/etc/ghettovcb/ghettoVCB-vm_backup_configuration_template
+/opt/ghettovcb/ghettoVCB.conf
+/opt/ghettovcb/ghettoVCB-restore_vm_restore_configuration_template
+/opt/ghettovcb/ghettoVCB-vm_backup_configuration_template
 ```
 
 Both ghettoVCB and ghettoVCB-restore scripts are located in:
@@ -25,24 +25,70 @@ Both ghettoVCB and ghettoVCB-restore scripts are located in:
 /opt/ghettovcb/bin/ghettoVCB-restore.sh
 ```
 
+### For ESXi 5.x to 6.x
+
 Install VIB
 ```
-esxcli software vib install -v /vghetto-ghettoVCB.vib -f
-```
-
-Install offline bundle
-```
-esxcli software vib install -d /vghetto-ghettoVCB-offline-bundle.zip -f
+esxcli software vib install -v /vghetto-ghettoVCB-7x.vib -f
 ```
 
 Update VIB
 ```
-esxcli software vib update -v /vghetto-ghettoVCB.vib -f
+esxcli software vib update -v /vghetto-ghettoVCB-7x.vib -f
+```
+
+Retrieve installation
+```console
+esxcli software vib get -n ghettoVCB
+```
+
+### For ESXi 7.x
+
+Install VIB
+```
+esxcli software vib install -v /vghetto-ghettoVCB-7x.vib -f
+```
+
+Install offline bundle
+```
+esxcli software vib install -d /vghetto-ghettoVCB-offline-bundle-7x.zip -f
+```
+
+Update VIB
+```
+esxcli software vib update -v /vghetto-ghettoVCB-7x.vib -f
 ```
 
 Update offline bundle
 ```
-esxcli software vib update -d /vghetto-ghettoVCB-offline-bundle.zip -f
+esxcli software vib update -d /vghetto-ghettoVCB-offline-bundle-7x.zip -f
+```
+
+Retrieve installation
+```console
+esxcli software vib get -n ghettoVCB
+```
+
+### For ESXi 8.x and later
+
+Install VIB
+```
+esxcli software vib install -v /vghetto-ghettoVCB-8x.vib -f
+```
+
+Install offline bundle
+```
+esxcli software vib install -d /vghetto-ghettoVCB-offline-bundle-8x.zip -f
+```
+
+Update VIB
+```
+esxcli software vib update -v /vghetto-ghettoVCB-8x.vib -f
+```
+
+Update offline bundle
+```
+esxcli software vib update -d /vghetto-ghettoVCB-offline-bundle-8x.zip -f
 ```
 
 Retrieve installation
