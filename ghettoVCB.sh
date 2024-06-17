@@ -698,6 +698,8 @@ indexedRotate() {
     done
 }
 
+joinArray () { local IFS="$1"; shift; echo "$*"; }
+
 checkVMBackupRotation() {
     local BACKUP_DIR_PATH="$1"
     local VM_TO_SEARCH_FOR="$2"
@@ -706,17 +708,25 @@ checkVMBackupRotation() {
     if [[ -z ${VM_BACKUP_ROTATION_COUNT} ]]; then
         VM_BACKUP_ROTATION_COUNT=1
     fi
-
+    
+    logger "info" "Rotate backups of '${VM_TO_SEARCH_FOR}' while keeping ${VM_BACKUP_ROTATION_COUNT} valid versions"
     LIST_BACKUPS=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
-    BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | head -"${VM_BACKUP_ROTATION_COUNT}")
-
+    
+    BACKUPS_FAILED=$(find "${BACKUP_DIR_PATH}" -iname STATUS.error | grep -o "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}")
+    FILTER_FAILED=$(joinArray \| ${BACKUPS_FAILED})
+    [[ -z ${FILTER_FAILED} ]] && FILTER_FAILED=###NOTHING###
+    logger "info" "Rotate backups of '${VM_TO_SEARCH_FOR}' and ignoring failed versions: '$(joinArray , ${BACKUPS_FAILED})'"
+    
+    BACKUPS_TO_KEEP=$(ls -t "${BACKUP_DIR_PATH}" | grep "${VM_TO_SEARCH_FOR}-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}_[0-9]\{2\}-[0-9]\{2\}-[0-9]\{2\}" | grep -vE "(${FILTER_FAILED})" | head -"${VM_BACKUP_ROTATION_COUNT}")
+    logger "info" "Rotate backups of '${VM_TO_SEARCH_FOR}' and keeping: '$(joinArray , ${BACKUPS_TO_KEEP})'" 
+    
     ORIG_IFS=${IFS}
     IFS='
 '
     for i in ${LIST_BACKUPS}; do
         FOUND=0
         for j in ${BACKUPS_TO_KEEP}; do
-            [[ $i == $j ]] && FOUND=1
+            [[ $i == $j ]] && FOUND=1 && break
         done
 
         if [[ $FOUND -eq 0 ]]; then
