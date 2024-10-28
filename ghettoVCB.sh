@@ -1235,7 +1235,7 @@ ghettoVCB() {
                                 FORMAT_OPTION="UNKNOWN"
                                 if [[ "${DISK_BACKUP_FORMAT}" == "zeroedthick" ]] ; then
                                     if [[ "${VER}" == "4" ]] || [[ "${VER}" == "5" ]] || [[ "${VER}" == "6" ]] || [[ "${VER}" == "7" ]] ; then
-                                        FORMAT_OPTION="zeroedthick"
+                                        FORMAT_OPTION="-d zeroedthick"
                                     else
                                         FORMAT_OPTION=""
                                     fi
