@@ -42,7 +42,7 @@ In its current configuration, the script will allow up to 3 unique backups of th
 * Ability to shutdown guestOS and initiate backup process and power on VM afterwards with the option of hard power timeout
 * Allow spaces in VM(s) backup list (not recommended and not a best practice)
 * Ensure that snapshot removal process completes prior to to continuing onto the next VM backup
-    * VM(s) that intially contain snapshots will not be backed up and will be ignored
+    * VM(s) that initially contain snapshots will not be backed up and will be ignored
 * Ability to specify the number of backup rotations for VM
 * Output back up VMDK(s) in either ZEROEDTHICK (default behavior) or 2GB SPARSE or THIN or EAGERZEROEDTHICK format
 * Support for both SCSI and IDE disks
@@ -61,18 +61,18 @@ In its current configuration, the script will allow up to 3 unique backups of th
 * Support for global ghettoVCB configuration file
 * Support for VM exclusion list
 * Ability to backup all VMs residing on a specific host w/o specifying VM list
-* Implemented simple locking mechenism to ensure only 1 instance of ghettoVCB is running per host
+* Implemented simple locking mechanism to ensure only 1 instance of ghettoVCB is running per host
 * Updated backup directory structure - rsync friendly
 * Additional logging and final status output
-* Logging of ghettoVCB PID (proces id)
+* Logging of ghettoVCB PID (process ID)
 * Email backup logs
-* Rsync "Link" Support (Experimental Suppport)
+* Rsync "Link" Support (Experimental Support)
 * Enhanced "dryrun" details including configuration and/or VMDK(s) issues
 * New storage debugging details pre/post backup
 * Quick email status summary
 * Support for individual VM backup via command-line
 * Support VM(s) with existing snapshots
-* Support mulitple running instances of ghettoVCB
+* Support multiple running instances of ghettoVCB
 * Configure VM shutdown/startup order
 * Support changing custom VM name during restore
 
@@ -213,7 +213,7 @@ Defining whether the VM is powered down or not prior to backup (1 = enable, 0 = 
 POWER_VM_DOWN_BEFORE_BACKUP=0
 ```
 
-> **Note:** VM(s) that are powered off will not require snapshoting
+> **Note:** VM(s) that are powered off will not require snapshotting
 
 Defining whether the VM can be hard powered off when `POWER_VM_DOWN_BEFORE_BACKUP` is enabled and VM does not have VMware Tools installed
 ```console
@@ -260,12 +260,12 @@ Defining whether or not VM(s) with existing snapshots can be backed up. This fla
 ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP=0
 ```
 
-Defining the order of which VM(s) should be shutdown first, especially if there is a dependency between multiple VM(s). This should be a comma seperate list of VM(s)
+Defining the order of which VM(s) should be shutdown first, especially if there is a dependency between multiple VM(s). This should be a comma separated list of VM(s)
 ```console
 VM_SHUTDOWN_ORDER=vm1,vm2,vm3
 ```
 
-Defining the order of VM(s) that should be started up first after backups have completed, especially if there is a dependency between multiple VM(s). This should be a comma seperate list of VM(s)
+Defining the order of VM(s) that should be started up first after backups have completed, especially if there is a dependency between multiple VM(s). This should be a comma separated list of VM(s)
 ```console
 VM_STARTUP_ORDER=vm3,vm2,vm1
 ```
@@ -275,7 +275,7 @@ Defining NON-PERSISTENT NFS Backup Volume (1 = yes, 0 = no):
 ENABLE_NON_PERSISTENT_NFS=0
 ```
 
-> **Note:** This is meant for environments that do not want a persisted connection to their NFS backup volume and allows the NFS volume to only be mounted during backups. The script expects the following 5 variables to be defined if this is to be used: `UNMOUNT_NFS`, `NFS_SERVER`, `NFS_MOUN`T`, `NFS_LOCAL_NAME` and `NFS_VM_BACKUP_DIR`
+> **Note:** This is meant for environments that do not want a persisted connection to their NFS backup volume and allows the NFS volume to only be mounted during backups. The script expects the following 5 variables to be defined if this is to be used: `UNMOUNT_NFS`, `NFS_SERVER`, `NFS_MOUNT`, `NFS_LOCAL_NAME` and `NFS_VM_BACKUP_DIR`
 
 Defining whether or not to unmount the NFS backup volume (1 = yes, 0 = no):
 ```console
@@ -371,14 +371,14 @@ Step 3 - Confirm that your email rule has been loaded by running the following E
 email                  true
 ```
 
-Step 4 - Connect to your email server by usingn nc (netcat) by running the following command and specifying the IP Address/Port of your email server:
+Step 4 - Connect to your email server by using nc (netcat) by running the following command and specifying the IP Address/Port of your email server:
 ```console
 
 # nc 172.30.0.107 25
 220 mail.primp-industries.com ESMTP Postfix
 ```
 
-You should recieve a response from your email server and you can enter Ctrl+C to exit. This custom ESXi firewall rule will not persist after a reboot, so you should create a custom VIB to ensure it persists after a system reboot. Please take a look at [this article](https://williamlam.com/2023/07/creating-a-custom-vib-for-esxi-8-x.html) for the details.
+You should receive a response from your email server and you can enter Ctrl+C to exit. This custom ESXi firewall rule will not persist after a reboot, so you should create a custom VIB to ensure it persists after a system reboot. Please take a look at [this article](https://williamlam.com/2023/07/creating-a-custom-vib-for-esxi-8-x.html) for the details.
 
 
 Defining to support RSYNC symbolic link creation (1 = yes, 0 = no):
@@ -496,7 +496,7 @@ Dry run (no backup will take place)
 	/opt/ghettovcb/bin/ghettoVCB.sh -f vms_to_backup -d dryrun
 ```
 
-The input to this script is a file that contains the display name of the  virtual machine(s) separated by a newline. When creating this file on a non-Linux/UNIX system, you may introduce ^M character which can cause  the script to miss-behave. To ensure this does not occur, plesae create  the file on the ESX/ESXi host.
+The input to this script is a file that contains the display name of the  virtual machine(s) separated by a newline. When creating this file on a non-Linux/UNIX system, you may introduce ^M character which can cause  the script to miss-behave. To ensure this does not occur, please create the file on the ESX/ESXi host.
 
 Here is a sample of what the file would look like:
 ```console
@@ -582,7 +582,7 @@ Logging output to "/tmp/ghettoVCB-2011-03-13_15-19-57.log" ...
 2011-03-13 15:19:59 -- dryrun: INDEPENDENT VMDK(s):
 2011-03-13 15:19:59 -- dryrun:  vCloudConnector_1.vmdk  40 GB
 2011-03-13 15:19:59 -- dryrun: TOTAL_VM_SIZE_TO_BACKUP: 3 GB
-2011-03-13 15:19:59 -- dryrun: Snapshots can not be taken for indepdenent disks!
+2011-03-13 15:19:59 -- dryrun: Snapshots can not be taken for independent disks!
 2011-03-13 15:19:59 -- dryrun: THIS VIRTUAL MACHINE WILL NOT HAVE ALL ITS VMDKS BACKED UP!
 2011-03-13 15:19:59 -- dryrun: ###############################################
 
@@ -912,7 +912,7 @@ Step 3 - Here we can see there is a tail command that was used in the script. We
 # kill -9 3360136
 ```
 
-> **Note:** Make sure you identify the correct PID, else you could accidently impact a running VM or worse your ESXi host.
+> **Note:** Make sure you identify the correct PID, else you could accidentally impact a running VM or worse your ESXi host.
 
 Step 4 - Depending on where you stopped the ghettoVCB process, you may need to consolidate or remove any existing snapshots that may exist on the VM that was being backed up. You can easily do so by using the vSphere Client.
 
@@ -1149,7 +1149,7 @@ Time: 20:40:36   Date: 08/14/2009   UTC
 
 Now you're really done!
 
-If you're still having trouble getting the cronjob to work, ensure that  you've specified the correct parameters and there aren’t any typos in  any part of the syntax.
+If you're still having trouble getting the cronjob to work, ensure that  you've specified the correct parameters and there aren't any typos in  any part of the syntax.
 
 Ensure crond (cron daemon) is running:
 
