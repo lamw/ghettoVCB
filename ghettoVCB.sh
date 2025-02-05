@@ -482,6 +482,17 @@ getVMDKs() {
 
         #if valid, then we use the vmdk file
         if [[ $? -eq 0 ]]; then
+            # Skip VMDK-files not listed in VMDK_FILES_TO_BACKUP
+            if [[ "${VMDK_FILES_TO_BACKUP}" != "all" ]]; then
+                ONE_VMDK_FILE=$(grep -i "^${SCSI_ID}.fileName" "${VMX_PATH}" | awk -F "\"" '{print $2}')
+                isVMDKFound=0
+                findVMDK "${ONE_VMDK_FILE}"
+                if [[ $isVMDKFound -eq 0 ]]; then
+                    logger "debug" "getVMDKs() - ${ONE_VMDK_FILE} is not listed in VMDK_FILES_TO_BACKUP, skipped..."
+                    continue;
+                fi;
+            fi;
+
             #verify disk is not independent
             grep -i "^${SCSI_ID}.mode" "${VMX_PATH}" | grep -i "independent" > /dev/null 2>&1
             if [[ $? -eq 1 ]]; then
