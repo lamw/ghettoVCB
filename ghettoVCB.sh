@@ -1565,7 +1565,7 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-		if [ ${EMAIL_TLS} -eq 1 ]; then
+		if [[ "${EMAIL_TLS}" -eq 1 ]]; then
                   cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -pause -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 		else
                   cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
