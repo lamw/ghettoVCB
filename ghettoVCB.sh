@@ -100,6 +100,9 @@ EMAIL_SERVER=auroa.primp-industries.com
 # Email SMTP server port
 EMAIL_SERVER_PORT=25
 
+# Use STARTTLS
+EMAIL_TLS=
+
 # Email SMTP username
 EMAIL_USER_NAME=
 
@@ -1492,7 +1495,7 @@ buildHeaders() {
         echo -ne "$(echo -n "${EMAIL_USER_PASSWORD}" |openssl enc -A -base64 2>&1 |tail -1)\r\n" >> "${EMAIL_LOG_HEADER}"
     fi
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "rcpt to: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1512,7 +1515,7 @@ buildHeaders() {
 sendDelay() {
     c=0
     while read L; do
-    	[ $c -lt 4 ] && sleep ${EMAIL_DELAY_INTERVAL}
+    	[ $c -lt 15 ] && sleep ${EMAIL_DELAY_INTERVAL}
     	c=$((c+1))
     	echo $L
     done
@@ -1562,7 +1565,11 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		if [ ${EMAIL_TLS} -eq 1 ]; then
+                  cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -pause -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		else
+                  cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		fi
                 #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
