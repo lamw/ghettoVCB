@@ -1581,7 +1581,11 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    if [[ "${EMAIL_TLS}" -eq 1 ]]; then
+              cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -pause -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    else
+              cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    fi
             #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
