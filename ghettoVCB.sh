@@ -1561,7 +1561,7 @@ sendMail() {
                 EMAIL_TO="${EMAIL_TO},${EMAIL_ERRORS_TO}"
             fi
         fi
-
+        sed -ie "s/\r//g" "${EMAIL_LOG_CONTENT}"
         echo "${EMAIL_TO}" | grep "," > /dev/null 2>&1
         if [[ $? -eq 0 ]] ; then
             ORIG_IFS=${IFS}
@@ -1569,7 +1569,7 @@ sendMail() {
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
 		if [[ "${EMAIL_TLS}" -eq 1 ]]; then
-                  cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -pause -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+                  cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -quiet -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 		else
                   cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 		fi
@@ -1582,7 +1582,7 @@ sendMail() {
         else
             buildHeaders ${EMAIL_TO}
 	    if [[ "${EMAIL_TLS}" -eq 1 ]]; then
-              cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -pause -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+              cat "${EMAIL_LOG_CONTENT}" | sendDelay| openssl s_client -starttls smtp -crlf -quiet -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 	    else
               cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
 	    fi
