@@ -100,6 +100,9 @@ EMAIL_SERVER=auroa.primp-industries.com
 # Email SMTP server port
 EMAIL_SERVER_PORT=25
 
+# Use STARTTLS 1=yes, 0=no
+EMAIL_TLS=0
+
 # Email SMTP username
 EMAIL_USER_NAME=
 
@@ -378,6 +381,7 @@ captureDefaultConfigurations() {
     DEFAULT_ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP="${ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP}"
     DEFAULT_VMDK_FILES_TO_BACKUP="${VMDK_FILES_TO_BACKUP}"
     DEFAULT_EMAIL_LOG="${EMAIL_LOG}"
+    DEFAULT_EMAIL_TLS="${EMAIL_TLS}"
     DEFAULT_WORKDIR_DEBUG="${WORKDIR_DEBUG}"
     DEFAULT_VM_SHUTDOWN_ORDER="${VM_SHUTDOWN_ORDER}"
     DEFAULT_VM_STARTUP_ORDER="${VM_STARTUP_ORDER}"
@@ -405,6 +409,7 @@ useDefaultConfigurations() {
     ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP="${DEFAULT_ALLOW_VMS_WITH_SNAPSHOTS_TO_BE_BACKEDUP}"
     VMDK_FILES_TO_BACKUP="${DEFAULT_VMDK_FILES_TO_BACKUP}"
     EMAIL_LOG="${DEFAULT_EMAIL_LOG}"
+    EMAIL_TLS="${DEFAULT_EMAIL_TLS}"
     WORKDIR_DEBUG="${DEFAULT_WORKDIR_DEBUG}"
     VM_SHUTDOWN_ORDER="${DEFAULT_VM_SHUTDOWN_ORDER}"
     VM_STARTUP_ORDER="${DEFAULT_VM_STARTUP_ORDER}"
@@ -570,6 +575,7 @@ dumpVMConfigurations() {
     logger "info" "CONFIG - RSYNC_LINK = ${RSYNC_LINK}"
     logger "info" "CONFIG - BACKUP_FILES_CHMOD = ${BACKUP_FILES_CHMOD}"
     logger "info" "CONFIG - EMAIL_LOG = ${EMAIL_LOG}"
+    logger "info" "CONFIG - EMAIL_TLS = ${EMAIL_TLS}"
     if [[ "${EMAIL_LOG}" -eq 1 ]]; then
         logger "info" "CONFIG - EMAIL_SERVER = ${EMAIL_SERVER}"
         logger "info" "CONFIG - EMAIL_SERVER_PORT = ${EMAIL_SERVER_PORT}"
@@ -1492,7 +1498,7 @@ buildHeaders() {
         echo -ne "$(echo -n "${EMAIL_USER_PASSWORD}" |openssl enc -A -base64 2>&1 |tail -1)\r\n" >> "${EMAIL_LOG_HEADER}"
     fi
     echo -ne "MAIL FROM: <${EMAIL_FROM}>\r\n" >> "${EMAIL_LOG_HEADER}"
-    echo -ne "RCPT TO: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
+    echo -ne "rcpt to: <${EMAIL_ADDRESS}>\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "DATA\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "From: ${EMAIL_FROM}\r\n" >> "${EMAIL_LOG_HEADER}"
     echo -ne "To: ${EMAIL_ADDRESS}\r\n" >> "${EMAIL_LOG_HEADER}"
@@ -1512,7 +1518,7 @@ buildHeaders() {
 sendDelay() {
     c=0
     while read L; do
-    	[ $c -lt 4 ] && sleep ${EMAIL_DELAY_INTERVAL}
+    	[ $c -lt 15 ] && sleep ${EMAIL_DELAY_INTERVAL}
     	c=$((c+1))
     	echo $L
     done
@@ -1562,7 +1568,11 @@ sendMail() {
             IFS=','
             for i in ${EMAIL_TO}; do
                 buildHeaders ${i}
-                cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		if [[ "${EMAIL_TLS}" -eq 1 ]]; then
+                  cat "${EMAIL_LOG_CONTENT}" | sed -e "s/\r//g" | sendDelay| openssl s_client -starttls smtp -crlf -quiet -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		else
+                  cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+		fi
                 #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
                 if [[ $? -eq 1 ]] ; then
                     logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
@@ -1571,7 +1581,11 @@ sendMail() {
             unset IFS
         else
             buildHeaders ${EMAIL_TO}
-            cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    if [[ "${EMAIL_TLS}" -eq 1 ]]; then
+              cat "${EMAIL_LOG_CONTENT}" | sed -e "s/\r//g" | sendDelay| openssl s_client -starttls smtp -crlf -quiet -connect "${EMAIL_SERVER}":"${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    else
+              cat "${EMAIL_LOG_CONTENT}" | sendDelay| "${NC_BIN}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" > /dev/null 2>&1
+	    fi
             #"${NC_BIN}" -i "${EMAIL_DELAY_INTERVAL}" "${EMAIL_SERVER}" "${EMAIL_SERVER_PORT}" < "${EMAIL_LOG_CONTENT}" > /dev/null 2>&1
             if [[ $? -eq 1 ]] ; then
                 logger "info" "ERROR: Failed to email log output to ${EMAIL_SERVER}:${EMAIL_SERVER_PORT} to ${EMAIL_TO}\n"
