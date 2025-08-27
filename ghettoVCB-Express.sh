@@ -197,18 +197,18 @@ else
     echo "$ARG_VM" > "$BACKUPLIST"
 fi
 
-# Handle Non-Persistent NFS Restore Mounts. Only runs if enabled in ghettoVCB.conf (ignores comments in ghettoVCB.conf)
-ENABLE_NON_PERSISTENT_NFS=$(grep -E '^ENABLE_NON_PERSISTENT_NFS=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+# Handle Non-Persistent NFS Mounts. Only runs if NFS is enabled in ghettoVCB.conf (also ignores comments on these lines in ghettoVCB.conf)
+ENABLE_NON_PERSISTENT_NFS=$(grep -E '^ENABLE_NON_PERSISTENT_NFS=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
 
 if [ "$ENABLE_NON_PERSISTENT_NFS" = "1" ]; then
     echo "Non-persistent NFS restore enabled. Preparing to mount NFS datastore..."
 
     # Read NFS settings from config, ignoring comments and spaces
-    UNMOUNT_NFS=$(grep -E '^UNMOUNT_NFS=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    NFS_SERVER=$(grep -E '^NFS_SERVER=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    NFS_MOUNT=$(grep -E '^NFS_MOUNT=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    NFS_LOCAL_NAME=$(grep -E '^NFS_LOCAL_NAME=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
-    NFS_VM_BACKUP_DIR=$(grep -E '^NFS_VM_BACKUP_DIR=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//;s/^"//;s/"$//;s/^[[:space:]]*//;s/[[:space:]]*$//')
+    UNMOUNT_NFS=$(grep -E '^UNMOUNT_NFS=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
+    NFS_SERVER=$(grep -E '^NFS_SERVER=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
+    NFS_MOUNT=$(grep -E '^NFS_MOUNT=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
+    NFS_LOCAL_NAME=$(grep -E '^NFS_LOCAL_NAME=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
+    NFS_VM_BACKUP_DIR=$(grep -E '^NFS_VM_BACKUP_DIR=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
 
     # Check if already mounted
     if esxcli storage nfs list | awk '{print $1}' | grep -qw "$NFS_LOCAL_NAME"; then
@@ -272,7 +272,7 @@ generate_restorelist() {
     echo "restorelist.txt generated with $(wc -l < "$RESTORELIST") entries"
 
     # Manual edit option
-    read -rp "Do you want to manually edit restorelist before continuing? (:wq to save) (y/N): " edit_choice </dev/tty
+    read -rp "Do you want to manually edit restorelist before continuing? (y/N): " edit_choice </dev/tty
     case "$edit_choice" in
         [yY]*)
             ${EDITOR:-vi} "$RESTORELIST"
