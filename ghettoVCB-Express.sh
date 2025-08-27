@@ -85,7 +85,7 @@ EOF
     return 1
 }
 
-# Check for availabiity of script dependencies
+# Check for availabilty of script dependencies
 [ -z "$VM_BACKUP_VOLUME" ] && { echo "Error: VM_BACKUP_VOLUME not set in $VCB_CONF"; exit 1; }
 [ -z "$RECOVERY_DATASTORE" ] && { echo "Error: RECOVERY_DATASTORE not set"; exit 1; }
 [ ! -f "$VCB_CONF" ] && { echo "Error: ghettoVCB.conf not found"; exit 1; }
