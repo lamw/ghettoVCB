@@ -231,7 +231,7 @@ if [ "$ENABLE_NON_PERSISTENT_NFS" = "1" ]; then
 
     # Optional: trap cleanup if UNMOUNT_NFS=1
     if [ "$UNMOUNT_NFS" = "1" ]; then
-        trap 'echo "Unmounting NFS datastore $NFS_LOCAL_NAME..."; esxcli storage nfs remove --volume-name="$NFS_LOCAL_NAME"' EXIT
+        trap 'esxcli storage nfs remove --volume-name="$NFS_LOCAL_NAME"' EXIT
     fi
 fi
 
