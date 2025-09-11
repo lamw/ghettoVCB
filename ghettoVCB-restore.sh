@@ -150,6 +150,10 @@ ghettoVCBrestore() {
         DATASTORE_TO_RESTORE_TO=$(echo "${LINE}" | awk -F ';' '{print $2}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
         RESTORE_DISK_FORMAT=$(echo "${LINE}" | awk -F ';' '{print $3}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
         RESTORE_VM_NAME=$(echo "${LINE}" | awk -F ';' '{print $4}' | sed 's/"//g' | sed -e 's/^[[:blank:]]*//;s/[[:blank:]]*$//')
+	# --- Patched Sanitize restore directory ---
+        DATASTORE_TO_RESTORE_TO="${DATASTORE_TO_RESTORE_TO%/}"
+        VM_TO_RESTORE="${VM_TO_RESTORE%/}"
+ 	# -----------------------------------------
 
         #figure the disk format to use
         if [ "${RESTORE_DISK_FORMAT}" -eq 1 ]; then
@@ -220,8 +224,19 @@ ghettoVCBrestore() {
 
                     if [ "${DISK}" != "" ]; then 
                         SCSI_CONTROLLER=$(echo ${DISK} | awk -F '=' '{print $1}')
-                        RENAME_DESTINATION_LINE_VMDK_DISK="${SCSI_CONTROLLER} = \"${VM_DISPLAY_NAME}-${NUM_OF_VMDKS}.vmdk\""
-                        if [ -z "${VMDK_LIST_TO_MODIFY}" ]; then
+
+            # --- Patched naming scheme ---
+            if [ ${NUM_OF_VMDKS} -eq 0 ]; then
+                # First disk uses base VM name
+                RENAME_DESTINATION_LINE_VMDK_DISK="${SCSI_CONTROLLER} = \"${VM_DISPLAY_NAME}.vmdk\""
+            else
+                # Subsequent disks use sequential numbering starting at 2
+                SEQ_NUM=$(printf "%06d" ${NUM_OF_VMDKS})
+                RENAME_DESTINATION_LINE_VMDK_DISK="${SCSI_CONTROLLER} = \"${VM_DISPLAY_NAME}-${SEQ_NUM}.vmdk\""
+            fi
+            # -----------------------------
+                       
+ if [ -z "${VMDK_LIST_TO_MODIFY}" ]; then
                             VMDK_LIST_TO_MODIFY="${DISK},${RENAME_DESTINATION_LINE_VMDK_DISK}"
                         else
                             VMDK_LIST_TO_MODIFY="${VMDK_LIST_TO_MODIFY};${DISK},${RENAME_DESTINATION_LINE_VMDK_DISK}"
@@ -232,6 +247,11 @@ ghettoVCBrestore() {
                 NUM_OF_VMDKS=$((NUM_OF_VMDKS+1))
             done
             IFS=${TMP_IFS}
+
+            # --- Patched Sanitize restore directory ---
+            VM_RESTORE_DIR="${DATASTORE_TO_RESTORE_TO}/${VM_RESTORE_FOLDER_NAME}"
+ 	    # ----------------------------------
+
         else 
             logger "Support for .tgz not supported - \"${VM_TO_RESTORE}\" will not be backed up!"
             IS_TGZ=1
@@ -324,6 +344,10 @@ if [ ! "${IS_TGZ}" == "1" ]; then
                     DS_VMDK_PATH=$(echo "${SOURCE_LINE_VMDK}" | sed 's/\/vmfs\/volumes\///g')
                     VMDK_DATASTORE=$(echo "${DS_VMDK_PATH%%/*}")
                     VMDK_VM=$(echo "${DS_VMDK_PATH##*/}")
+
+  		    # --- Patched vmdk paths ---
+ 		    VMDK_DATASTORE="${VMDK_DATASTORE%/}"
+                    # --------------------------
                     SOURCE_VMDK="${VM_TO_RESTORE}/${VMDK_DATASTORE}/${VMDK_VM}"
                 else
                     SOURCE_VMDK="${VM_TO_RESTORE}/${SOURCE_LINE_VMDK}"
