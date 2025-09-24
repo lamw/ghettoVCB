@@ -2,7 +2,7 @@
 # =============================================================================
 # ghettoVCB Backup & Restore Wrapper
 #
-# David Harrop 
+# David Harrop
 # August 2025
 #
 # Description:
@@ -12,16 +12,20 @@
 #     - Backup & restore individual vms or all
 #     - Handles VM names with spaces
 #     - Dry-run mode for preview without execution
-# 	  - Prompt to rename vm(s) and edit the restore file prior to restore
+#     - Prompt to rename vm(s) and edit the restore file prior to restore
 #     - Cleans up orphan vmkfstools processes or /tmp/ghetto* files after script interruption
 #
 # Usage:
-#   ./ghettoVCB-Express.sh --all							# Back up all VMs except excluded
-#   ./ghettoVCB-Express.sh --name vmname or "vm name"					# Back up a specific VM
-#   ./ghettoVCB-Express.sh --restore --all | --name vmname or "vm name"			# Restore all VMs except excluded
-#   ./ghettoVCB-Express.sh --dry-run --all | --name vmname or "vm name"			# Preview which VMs will be backed up
-#   ./ghettoVCB-Express.sh --restore --dry-run --all | --name vmname or "vm name"	# Preview restore targets
-#   ./ghettoVCB-Express.sh --help							# Show these options
+#   ./ghettoVCB-Express.sh --all                                                    # Back up all VMs
+#   ./ghettoVCB-Express.sh --name vmname | --name "vm name"                         # Back up a specific VM (with or without spaces)
+#   ./ghettoVCB-Express.sh --name vmname1 --name vmname2                            # Back up a selection of VMs
+#   ./ghettoVCB-Express.sh --all                                                    # Restore all VMs
+#   ./ghettoVCB-Express.sh --restore --name vmmname                                 # Restore a specific VM
+#   ./ghettoVCB-Express.sh --restore --name vmname1 --name vmname2                  # Restore a selection of VMs
+#   ./ghettoVCB-Express.sh --dry-run --all | --name vmname                          # Preview backup targets
+#   ./ghettoVCB-Express.sh --restore --dry-run --all | --name vmname                # Preview restore targets
+#   ./ghettoVCB-Express.sh --kill                                                   # Free any hung backup processes or locked files
+#   ./ghettoVCB-Express.sh --help                                                   # Show these options
 #
 # Requirements:
 #   - ghettoVCB.sh, ghettoVCB-restore.sh, and ghettoVCB.conf placed in the same directory
@@ -29,40 +33,24 @@
 #   - Must only run one instance of this script at a time
 # =============================================================================
 
-set -eu
-
-clear
-
-# Set script variables
-
-	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-	VCB_CONF="$SCRIPT_DIR/ghettoVCB.conf"
-	#RECOVERY_DATASTORE=$(esxcli storage filesystem list | awk '$1 ~ /^\/vmfs/ {print $2; exit}') # Get first NFS
-	RECOVERY_DATASTORE="Datastore1"
-	RECOVERY_DATASTORE_PATH="/vmfs/volumes/$RECOVERY_DATASTORE/Recovery/"	
-	RESTORE_DISK_FORMAT="3" # 1 = zeroedthick, 2 = 2gbsparse, 3 = thin, 4 = eagerzeroedthick
-
-# Excluded VMs (exact names, one per line)
+# ======== Excluded from backup or restore (exact names, one per line) ========
 EXCLUDE_VMS="
 Router1
 "
 
-usage() {
-    echo "Usage: $0 [--restore] [--dry-run] [--all | --name <VMNAME>]"
-    echo
-    echo "Examples:"
-    echo "  $0 --all						# Back up all VMs except excluded"
-    echo "  $0 --name <VMNAME>				# Back up a specific VM"
-    echo "  $0 --restore --all				# Restore all VMs except excluded"
-    echo "  $0 --restore --name <VMNAME>			# Restore a specific VM"
-    echo "  $0 --dry-run --all | --name <VMNAME>		# Preview which VMs would be backed up"
-    echo "  $0 --restore --dry-run --all | --name <VMNAME>	# Preview restore targets"
-    echo "  $0 --help						# Show this help message"
-    echo
-    exit 1
-}
+set -eu
+[ -t 1 ] && clear
 
-# Gather any exlcuded VMs 
+# Set a few important script variables
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VCB_CONF="$SCRIPT_DIR/ghettoVCB.conf"
+DEFAULT_RECOVERY_DATASTORE="Datastore1"
+DEFAULT_RECOVERY_FOLDER=""
+DEFAULT_RECOVERY_DATASTORE_PATH="/vmfs/volumes/$DEFAULT_RECOVERY_DATASTORE/$DEFAULT_RECOVERY_FOLDER"
+RESTORE_DISK_FORMAT="3" # 1 = zeroedthick, 2 = 2gbsparse, 3 = thin, 4 = eagerzeroedthick
+DELETE_UNZIPPED="true"  # Delete decompressed backup copy after each VM restore to prevent disk space blowout
+
+# Gather all exlcuded VMs
 is_excluded() {
     vm="$1"
     while IFS= read -r ex; do
@@ -74,63 +62,57 @@ EOF
     return 1
 }
 
+# Check to make sure vcb.conf is set
+[ ! -f "$VCB_CONF" ] && {
+    echo "Error: ghettoVCB.conf not found"
+    exit 1
+}
+
 # Get the backup volume from ghettoVCB.conf
 VM_BACKUP_VOLUME=$(
-  grep -E '^VM_BACKUP_VOLUME=' "$VCB_CONF" \
-  | cut -d'=' -f2- \
-  | sed 's/^"[[:space:]]*//; s/[[:space:]]*"//; s/[[:space:]]*$//'
+    grep -E '^VM_BACKUP_VOLUME=' "$VCB_CONF" |
+        cut -d'=' -f2- |
+        sed 's/^"[[:space:]]*//; s/[[:space:]]*"//; s/[[:space:]]*$//'
 )
-# Ensure no trailing slash in path
+# Ensure no trailing slash in backup path
 VM_BACKUP_VOLUME="${VM_BACKUP_VOLUME%/}"
 
-# Check for availabilty of script dependencies
-[ -z "$VM_BACKUP_VOLUME" ] && { echo "Error: VM_BACKUP_VOLUME not set in $VCB_CONF"; exit 1; }
-[ -z "$RECOVERY_DATASTORE" ] && { echo "Error: RECOVERY_DATASTORE not set"; exit 1; }
-[ ! -f "$VCB_CONF" ] && { echo "Error: ghettoVCB.conf not found"; exit 1; }
+# Check that a backup volume value was read from vcb.conf
+[ -z "$VM_BACKUP_VOLUME" ] && {
+    echo "Error: VM_BACKUP_VOLUME not set in $VCB_CONF"
+    exit 1
+}
 
 # Parse script arguments
 RESTORE_MODE=0
 DRYRUN_MODE=0
 ARG_MODE=""
-ARG_VM=""
+ARG_VM_LIST=""
 
-# Show usage if no arguments
-echo
-if [ $# -eq 0 ]; then
-		[ $# -eq 0 ] && usage
-fi
-
-# Detect --restore, --dry-run before main args
-while [ $# -gt 0 ]; do
-    case "$1" in
-	--help) usage;;
-        --restore) RESTORE_MODE=1 ;;
-        --dry-run) DRYRUN_MODE=1 ;;
-        --all)     ARG_MODE="all" ;;
-        --name)    
-            shift
-            [ -z "$1" ] && { echo "Error: VM name required after --name"; echo; exit 1; }
-            if is_excluded "$1"; then
-                echo "Error: VM '$1' is excluded."; echo; exit 1
-            fi
-            ARG_MODE="name"
-            ARG_VM="$1"
-            ;;
-        *) usage;;
-    esac
-    shift
-
-done
-
-# Ensure required mode args are set
-[ -z "$ARG_MODE" ] && usage
-
-# Clear out leftover temp files or processes from previous (interrupted) ghettoVCB runs 
-echo "--------------------------------------------------"
-echo "Cleaning temporary files..."
-rm -rf /tmp/ghetto* 2>/dev/null
+usage() {
+    echo "Usage: $0 [--restore] [--dry-run] [--all | --name <vmname>]"
+    echo
+    echo "Examples:"
+    echo "  $0 --all                                        # Back up all VMs"
+    echo "  $0 --name <vmname> | <\"vm name\">                # Back up a specific VM (with or without spaces)"
+    echo "  $0 --name <vmname1> --name <vmname2>            # Back up a selection of VMs"
+    echo "  $0 --restore --all                              # Restore all VMs"
+    echo "  $0 --restore --name <vmname>                    # Restore a specific VM"
+    echo "  $0 --restore --name <vmname1> --name <vnname2>  # Restore a selection of VMs"
+    echo "  $0 --dry-run --all | --name <vmname>            # Preview backup targets"
+    echo "  $0 --restore --dry-run --all | --name <vmname>  # Preview restore targets"
+    echo "  $0 --kill                                       # Kill any hung backup processes & unlock files"
+    echo "  $0 --help                                       # Show this help message"
+    echo
+    exit 0
+}
 
 cleanup_vmkfstools() {
+    # Clear out leftover temp files or processes from previous (interrupted) ghettoVCB runs
+ echo "---------------------------------------------------------------------------------------------------------------"
+    echo "Cleaning temporary files..."
+    rm -rf /tmp/ghettoVCB.work* 2>/dev/null
+
     echo "Checking for leftover vmkfstools processes..."
     while true; do
         # get PIDs safely
@@ -138,34 +120,133 @@ cleanup_vmkfstools() {
         [ -z "$pids" ] && break
         for pid in $pids; do
             echo "  Killing PID $pid"
-            kill -9 "$pid" 2>/dev/null || true   # ignore errors
+            kill -9 "$pid" 2>/dev/null || true # ignore errors
             sleep 0.2
         done
         sleep 0.5
     done
 }
 
-trap 'echo "Script interrupted!"; cleanup_vmkfstools; exit 1' INT TERM
+cleanup() {
+ echo "---------------------------------------------------------------------------------------------------------------"
+    echo "Running cleanup..."
 
+    # Kill leftover processes
+    cleanup_vmkfstools || true
+
+    # Unmount NFS if enabled
+    if [ "${UNMOUNT_NFS:-0}" = "1" ] && [ -n "${NFS_LOCAL_NAME:-}" ]; then
+        echo "Unmounting NFS datastore: $NFS_LOCAL_NAME"
+        esxcli storage nfs remove --volume-name="$NFS_LOCAL_NAME" 2>/dev/null || true
+    fi
+
+    # Remove working lists safely
+    rm -f "${BACKUPLIST:-}" "${RESTORELIST:-}" current_restore_task.txt 2>/dev/null || true
+
+    echo "Cleanup complete."
+    echo
+}
+
+# Show script usage if no arguments
+echo
+[ $# -eq 0 ] && usage
+
+RECOVERY_DATASTORE="$DEFAULT_RECOVERY_DATASTORE"
+RECOVERY_DATASTORE_PATH="$DEFAULT_RECOVERY_DATASTORE_PATH"
+[ -z "$RECOVERY_DATASTORE" ] && {
+    echo "Error: RECOVERY_DATASTORE not set"
+    exit 1
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+    --all)
+        ARG_MODE="all"
+        ;;
+    --dry-run)
+        DRYRUN_MODE=1
+        ;;
+    --help)
+        usage
+        ;;
+    --kill)
+        echo "Killing leftover backup processes and cleaning temporary files..."
+        echo
+        cleanup_vmkfstools
+        echo "Cleanup complete. Exiting."
+        exit 0
+        ;;
+    --restore)
+        RESTORE_MODE=1
+        RECOVERY_DATASTORES=$(esxcli storage filesystem list | awk '$1 ~ /^\/vmfs/ && $2 !~ /^(BOOTBANK|OSDATA)/ {print $2}')
+        echo "Available recovery datastores:"
+        PS=1
+        for DS in $RECOVERY_DATASTORES; do
+            echo "$PS) $DS"
+            PS=$((PS + 1))
+        done
+
+        while true; do
+            read -p "Select datastore number: " NUM
+            if [ "$NUM" -ge 1 ] 2>/dev/null && [ "$NUM" -le $(echo "$RECOVERY_DATASTORES" | wc -l) ]; then
+                RECOVERY_DATASTORE=$(echo "$RECOVERY_DATASTORES" | sed -n "${NUM}p")
+                RECOVERY_DATASTORE_PATH="/vmfs/volumes/$RECOVERY_DATASTORE/$DEFAULT_RECOVERY_FOLDER"
+                echo "You selected: $RECOVERY_DATASTORE"
+                break
+            else
+                echo "Invalid selection, try again."
+            fi
+        done
+        ;;
+
+    --name)
+        shift
+        [ -z "$1" ] && {
+            echo "Error: VM name required after --name"
+            exit 1
+        }
+        if is_excluded "$1"; then
+            echo "Error: VM '$1' is excluded."
+            exit 1
+        fi
+        ARG_MODE="name"
+        # Append using newline
+        if [ -z "$ARG_VM_LIST" ]; then
+            ARG_VM_LIST="$1"
+        else
+            ARG_VM_LIST="$ARG_VM_LIST
+$1"
+        fi
+        ;;
+    *) usage ;;
+    esac
+    shift
+done
+
+# Ensure required mode args are set
+[ -z "$ARG_MODE" ] && usage
+
+# Catch all exit paths
+trap 'cleanup' INT TERM EXIT
+
+# Tidy up any orphan processes next
 cleanup_vmkfstools || true
 
+# Show excluded VMs
 echo
 echo "Excluded VMs:"
-echo "$EXCLUDE_VMS" | sed '/^$/d' | while IFS= read -r ex; do
-    echo "  - $ex"
-done
-echo
+echo "$EXCLUDE_VMS" | sed '/^$/d' | while IFS= read -r ex; do echo "  - $ex"; done
 
-# Normalise recovery datastore path
+# Ensure no trailing slash in recovery datastore path
 RECOVERY_DATASTORE_PATH="${RECOVERY_DATASTORE_PATH%/}/"
 
 # Show backup and restore datastores
 echo "Backup datastore (backup target from ghettoVCB.conf):"
 echo "  - $VM_BACKUP_VOLUME"
 echo
-echo "Recovery datastore (recovery target set in this script):"
-echo "  - $RECOVERY_DATASTORE_PATH$RECOVERY_DATASTORE"
-echo "--------------------------------------------------"
+echo "Recovery datastore (subfolder set in DEFAULT_RECOVERY_FOLDER):"
+echo "  - $RECOVERY_DATASTORE_PATH"
+echo "---------------------------------------------------------------------------------------------------------------"
 echo
 
 # Warn if backup and restore datastores are the same
@@ -184,15 +265,15 @@ fi
 # Backup list generator
 BACKUPLIST="$SCRIPT_DIR/backuplist.txt"
 generate_backuplist() {
-    > "$BACKUPLIST"
+    >"$BACKUPLIST"
 
     if [ "$RESTORE_MODE" -eq 1 ]; then
         # In restore mode, build list from backup storage
-        echo "Building backup list from backup repository: $VM_BACKUP_VOLUME"
+        echo "Building list of available backups from repository: $VM_BACKUP_VOLUME"
         find "$VM_BACKUP_VOLUME" -maxdepth 1 -mindepth 1 -type d | while IFS= read -r vm_dir; do
             vm="$(basename "$vm_dir")"
             if ! is_excluded "$vm"; then
-                echo "$vm" >> "$BACKUPLIST"
+                echo "$vm" >>"$BACKUPLIST"
             fi
         done
     else
@@ -208,19 +289,18 @@ generate_backuplist() {
         }' | while IFS= read -r vm; do
             vm="$(echo "$vm" | sed "s/^[[:space:]]*//;s/[[:space:]]*$//")"
             if ! is_excluded "$vm"; then
-                echo "$vm" >> "$BACKUPLIST"
+                echo "$vm" >>"$BACKUPLIST"
             fi
         done
     fi
 }
+# Output the selection array to the backup list
+[ "$ARG_MODE" = "all" ] && generate_backuplist || {
+    : >"$BACKUPLIST"
+    echo "$ARG_VM_LIST" >>"$BACKUPLIST"
+}
 
-if [ "$ARG_MODE" = "all" ]; then
-    generate_backuplist
-else
-    echo "$ARG_VM" > "$BACKUPLIST"
-fi
-
-# Handle Non-Persistent NFS Mounts. Only runs if NFS is enabled in ghettoVCB.conf (also ignores comments on these lines in ghettoVCB.conf)
+# Handle Non-Persistent NFS Mounts. Only runs if NFS is enabled in ghettoVCB.conf (also ignores any comments on these lines in ghettoVCB.conf)
 ENABLE_NON_PERSISTENT_NFS=$(grep -E '^ENABLE_NON_PERSISTENT_NFS=' "$VCB_CONF" | sed 's/#.*//;s/^.*=//')
 
 if [ "$ENABLE_NON_PERSISTENT_NFS" = "1" ]; then
@@ -247,21 +327,17 @@ if [ "$ENABLE_NON_PERSISTENT_NFS" = "1" ]; then
             exit 1
         fi
     fi
-    
+
     # Update VM_BACKUP_VOLUME to point to the NFS backup path
     VM_BACKUP_VOLUME="/vmfs/volumes/$NFS_LOCAL_NAME/$NFS_VM_BACKUP_DIR"
     echo "VM_BACKUP_VOLUME set to: $VM_BACKUP_VOLUME"
 
-    # Optional: trap cleanup if UNMOUNT_NFS=1
-    if [ "$UNMOUNT_NFS" = "1" ]; then
-        trap 'esxcli storage nfs remove --volume-name="$NFS_LOCAL_NAME"' EXIT
-    fi
 fi
 
 # Restore list generator
 RESTORELIST="$SCRIPT_DIR/restorelist.txt"
 generate_restorelist() {
-    : > "$RESTORELIST"
+    : >"$RESTORELIST"
 
     if [ ! -f "$BACKUPLIST" ]; then
         echo "Error: BACKUPLIST '$BACKUPLIST' not found" >&2
@@ -272,7 +348,6 @@ generate_restorelist() {
         [ -z "$vm" ] && continue
 
         # Find the VM backup directory
-        #vm_dir=$(find "$VM_BACKUP_VOLUME" -maxdepth 1 -type d -name "${vm}*" 2>/dev/null | sort | tail -n1)
         vm_dir=$(find "$VM_BACKUP_VOLUME" -maxdepth 1 -type d -name "$vm" 2>/dev/null | head -n1)
 
         if [ -z "$vm_dir" ]; then
@@ -304,29 +379,30 @@ generate_restorelist() {
         # Clean VM name
         new_vm_clean=$(echo "$new_vm" | sed 's#^/*##; s#/*$##')
 
-	 # Ensure the base recovery folder exists
-	 mkdir -p "$RECOVERY_DATASTORE_PATH" || {
-    		echo "Error: Failed to create base recovery path '$RECOVERY_DATASTORE_PATH'"
-    		exit 1
-	 }
+        # Ensure the base recovery folder exists
+        mkdir -p "$RECOVERY_DATASTORE_PATH" || {
+            echo "Error: Failed to create base recovery path '$RECOVERY_DATASTORE_PATH'"
+            exit 1
+        }
 
-	# Write entry to restorelist
-	# IMPORTANT: pass the base path, not per-VM
-	printf '"%s;%s;%s;%s"\n' \
-    	"$latest_backup" \
-    	"$RECOVERY_DATASTORE_PATH" \
-    	"$RESTORE_DISK_FORMAT" \
-    	"$new_vm_clean" >> "$RESTORELIST"
+        # Write entry to restorelist
+        # IMPORTANT: pass the base path, not per-VM
+        printf '"%s;%s;%s;%s"\n' \
+            "$latest_backup" \
+            "$RECOVERY_DATASTORE_PATH" \
+            "$RESTORE_DISK_FORMAT" \
+            "$new_vm_clean" >>"$RESTORELIST"
 
-    done < "$BACKUPLIST"
+    done <"$BACKUPLIST"
 
     echo
-    echo "restorelist.txt generated with $(wc -l < "$RESTORELIST") entries"
+    echo "restorelist.txt generated with $(wc -l <"$RESTORELIST") entries"
 
     # Allow manual editing
     read -rp "Do you want to manually edit restorelist before continuing? (y/N): " edit_choice </dev/tty
+    echo
     case "$edit_choice" in
-        [yY]*) ${EDITOR:-vi} "$RESTORELIST";;
+    [yY]*) ${EDITOR:-vi} "$RESTORELIST" ;;
     esac
 }
 
@@ -334,44 +410,70 @@ generate_restorelist() {
 if [ "$DRYRUN_MODE" -eq 1 ]; then
     if [ "$RESTORE_MODE" -eq 1 ]; then
         echo "[DRY-RUN] Restore would be run on the following VMs:"
+        generate_restorelist
+        echo
+        cat "$RESTORELIST"
     else
         echo "[DRY-RUN] Backup would be run on the following VMs:"
+        cat "$BACKUPLIST"
     fi
-    cat "$BACKUPLIST"
-    rm -f "$BACKUPLIST"
     exit 0
 fi
 
 # Execute backup/restore
 if [ "$RESTORE_MODE" -eq 1 ]; then
-    echo "Running ghettoVCB-restore with $BACKUPLIST..."
-	generate_restorelist
-    "$SCRIPT_DIR/ghettoVCB-restore.sh" -c "$RESTORELIST"
+    echo "Running ghettoVCB-restore..."
+    generate_restorelist
 
-    # Normalize restored VMX files: single space around '='
+    # Process each VM individually
     while IFS=";" read -r backup_path recovery_path diskfmt vmname; do
-    # strip quotes if present
-    recovery_path=$(echo "$recovery_path" | sed 's/^"//; s/"$//')
-    vmname=$(echo "$vmname" | sed 's/^"//; s/"$//')
+        # Strip quotes
+        backup_path=$(echo "$backup_path" | sed 's/^"//; s/"$//')
+        recovery_path=$(echo "$recovery_path" | sed 's/^"//; s/"$//')
+        vmname=$(echo "$vmname" | sed 's/^"//; s/"$//')
 
-    vmx_file="$recovery_path/$vmname/$vmname.vmx"
-    if [ -f "$vmx_file" ]; then
-        echo "Normalizing VMX file: $vmx_file"
-        sed -i 's/[[:space:]]*=[[:space:]]*/ = /g' "$vmx_file"
-    fi
-done < "$RESTORELIST"
+        echo "---------------------------------------------------------------------------------------------------------------"
+        echo "Restoring VM '$vmname'..."
+        echo "Backup path: $backup_path"
+        echo "Recovery path: $recovery_path"
+
+        # Create a temporary restore task file
+        echo "\"$backup_path\";\"$recovery_path\";\"$diskfmt\";\"$vmname\"" >"$SCRIPT_DIR/current_restore_task.txt"
+
+        # Run the restore
+        "$SCRIPT_DIR/ghettoVCB-restore.sh" -c "$SCRIPT_DIR/current_restore_task.txt"
+
+        # Normalize VMX file
+        vmx_file="$recovery_path/$vmname/$vmname.vmx"
+        [ -f "$vmx_file" ] && sed -i 's/[[:space:]]*=[[:space:]]*/ = /g' "$vmx_file"
+
+        # Delete decompressed folder if requested
+        if [ "$DELETE_UNZIPPED" = "true" ]; then
+            # The extracted folder is a subdirectory under the VM backup dir
+            backup_dir=$(dirname "$backup_path")  # /vmfs/.../Vmname
+            # Find subdirectory starting with vmname- (the extracted folder)
+            decompressed_dir=$(find "$backup_dir" -maxdepth 1 -type d -name "$vmname-*" | sort | tail -n1)
+
+            if [ -n "$decompressed_dir" ] && [ -d "$decompressed_dir" ]; then
+                rm -rf "$decompressed_dir"
+                echo "Deleted decompressed backup copy for VM '$vmname': $decompressed_dir"
+				echo
+            else
+                echo "No decompressed backup found to delete for VM '$vmname'"
+				echo
+            fi
+        fi
+
+    
+    done <"$RESTORELIST"
+
     ACTION="Restore"
-
 else
     echo "Running ghettoVCB backup with $BACKUPLIST..."
     "$SCRIPT_DIR/ghettoVCB.sh" -g "$VCB_CONF" -f "$BACKUPLIST"
     ACTION="Backup"
 fi
 
-echo
 echo "$ACTION completed. VMs processed:"
 cat "$BACKUPLIST"
 echo
-
-rm -f "$BACKUPLIST"
-rm -f "$RESTORELIST"
