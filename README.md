@@ -25,9 +25,9 @@
 
 ## Description
 
-The ghettoVCB script performs backups of virtual machines residing on ESX(i) 3.x, 4.x, 5.x, 6.x, 7.x & 8.x servers using methodology similar to VMware's VCB tool. The script takes snapshots of live running virtual machines, backs up the  master VMDK(s) and then upon completion, deletes the snapshot until the next backup. The only caveat is that it utilizes resources available to the ESXi Shell running the backups as opposed to following the traditional method of offloading virtual machine backups through a VCB proxy.
+The ghettoVCB script performs backups of virtual machines residing on ESX(i) 3.x, 4.x, 5.x, 6.x, 7.x, 8.x & 9.x servers using methodology similar to VMware's VCB tool. The script takes snapshots of live running virtual machines, backs up the  master VMDK(s) and then upon completion, deletes the snapshot until the next backup. The only caveat is that it utilizes resources available to the ESXi Shell running the backups as opposed to following the traditional method of offloading virtual machine backups through a VCB proxy.
 
-This script has been tested on ESX 3.5/4.x/5.x and ESXi 3.5/4.x/5.x/6.x/7.x/8.x and supports the following backup mediums: LOCAL STORAGE, SAN and NFS. The script is non-interactive and can be setup to run via cron. Currently, this script accepts a text file that lists the display names of virtual machine(s) that are to be backed up. Additionally, one can specify a folder containing configuration files on a per VM basis for  granular control over backup policies.
+This script has been tested on ESX 3.5/4.x/5.x and ESXi 3.5/4.x/5.x/6.x/7.x/8.x/9.x and supports the following backup mediums: LOCAL STORAGE, SAN and NFS. The script is non-interactive and can be setup to run via cron. Currently, this script accepts a text file that lists the display names of virtual machine(s) that are to be backed up. Additionally, one can specify a folder containing configuration files on a per VM basis for  granular control over backup policies.
 
 Additionally, for ESX(i) environments that don't have persistent NFS datastores designated for backups, the script offers the ability to automatically connect the ESX(i) server to a NFS exported folder and then upon backup completion, disconnect it from the ESX(i) server. The connection is established by creating an NFS datastore link which enables monolithic (or thick) VMDK backups as opposed to using the usual  *nix mount command which necessitates breaking VMDK files into the 2gbsparse format for backup. Enabling this mode is self-explanatory and will evidently be so when editing the script (Note: `VM_BACKUP_VOLUME` variable is ignored if `ENABLE_NON_PERSISTENT_NFS=1`).
 
@@ -77,7 +77,7 @@ In its current configuration, the script will allow up to 3 unique backups of th
 * Support changing custom VM name during restore
 
 ## Requirements:
-* VMs running on ESX(i) 3.5/4.x+/5.x/6.x/7.x/8.x
+* VMs running on ESX(i) 3.5/4.x+/5.x/6.x/7.x/8.x/9.x
 * SSH console access to ESX(i) host
 
 ## Download
