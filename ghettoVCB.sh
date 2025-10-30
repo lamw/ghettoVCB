@@ -9,7 +9,7 @@
 #                   User Definable Parameters
 ##################################################################
 
-LAST_MODIFIED_DATE=2024_06_30
+LAST_MODIFIED_DATE=2025_10_30
 VERSION=1
 
 # directory that all VM backups should go (e.g. /vmfs/volumes/SAN_LUN1/mybackupdir)
@@ -309,6 +309,7 @@ sanityCheck() {
     ESX_RELEASE=$(uname -r)
 
     case "${ESX_VERSION}" in
+        9.0.0|9.0.1)                VER=9; break;;
         8.0.0|8.0.1|8.0.2|8.0.3)    VER=8; break;;
         7.0.0|7.0.1|7.0.2|7.0.3)    VER=7; break;;
         6.0.0|6.5.0|6.7.0)          VER=6; break;;
